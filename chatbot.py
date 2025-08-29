@@ -116,7 +116,7 @@ def gerar_resposta_com_gpt(pergunta, contexto):
 
 # --- Interface do Chat ---
 # REMOVEMOS A LISTA DE SAUDAÇÕES DAQUI
-RESPOSTA_SAUDACAO = "Olá! Eu sou Léo, assistente virtual da GoEvo. Como posso te ajudar com o sistema hoje?"
+RESPOSTA_SAUDACAO = "Olá! Eu sou Léo, assistente virtual da GoEvo. Como posso te ajudar?"
 
 colecao = carregar_colecao_chroma()
 if "messages" not in st.session_state:
@@ -151,4 +151,5 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
             
             st.markdown(resposta_final)
     
+
     st.session_state.messages.append({"role": "assistant", "content": resposta_final})
