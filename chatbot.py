@@ -2,6 +2,16 @@ import streamlit as st
 import openai
 import chromadb
 
+# Adicione este bloco no início do seu chatbot.py
+st.markdown("""
+    <style>
+        /* Esconde o header e o footer do Streamlit */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
+
 # --- Configuração da Página ---
 st.set_page_config(page_title="Agente de Suporte", page_icon="🤖")
 st.title("🤖 Agente de Suporte GoEvo Compras")
@@ -153,3 +163,4 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
     
 
     st.session_state.messages.append({"role": "assistant", "content": resposta_final})
+
