@@ -53,12 +53,15 @@ def identificar_intencao(pergunta):
     try:
         prompt_classificador = f"""
         Você é um classificador de intenção de usuário para um chatbot de suporte técnico.
-        Analise a frase do usuário e classifique-a em uma das duas categorias: SAUDACAO ou PERGUNTA_TECNICA.
-        
-        - SAUDACAO: Cumprimentos, conversas casuais, agradecimentos, despedidas.
-        - PERGUNTA_TECNICA: Dúvidas sobre o sistema, pedidos de ajuda, perguntas sobre funcionalidades.
-        
-        Responda APENAS com a palavra SAUDACAO ou a palavra PERGUNTA_TECNICA.
+        Analise a frase do usuário e classifique-a em uma das seguintes categorias:
+
+        - SAUDACAO: Cumprimentos, agradecimentos, despedidas, gentilezas.
+        - PERGUNTA_TECNICA: Dúvidas sobre funcionalidades do sistema, como fazer algo no sistema.
+        - ERRO: Relato de falha, erro técnico, problema de funcionamento.
+        - TREINAMENTO: Solicitação de passo a passo, guia de uso, tutoriais.
+        - FAQ: Perguntas comuns de negócio ou suporte que não envolvem o sistema em si.
+
+        Responda APENAS com uma destas palavras: SAUDACAO, PERGUNTA_TECNICA, ERRO, TREINAMENTO ou FAQ.
 
         Frase do usuário: "{pergunta}"
         """
@@ -67,21 +70,15 @@ def identificar_intencao(pergunta):
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt_classificador}],
             temperature=0,
-            max_tokens=5 # Muito baixo para ser rápido e barato
+            max_tokens=5
         )
-        # Limpa a resposta para garantir que temos apenas a palavra-chave
-        intencao = resposta.choices[0].message.content.strip().upper()
-        
-        # Garante que a resposta seja uma das duas opções esperadas
-        if "SAUDACAO" in intencao:
-            return "SAUDACAO"
-        else:
-            return "PERGUNTA_TECNICA"
+
+        return resposta.choices[0].message.content.strip().upper()
             
     except Exception as e:
         print(f"Erro na classificação de intenção: {e}")
-        # Em caso de erro, assume que é uma pergunta técnica para não perder a dúvida do usuário
         return "PERGUNTA_TECNICA"
+
 
 
 def buscar_contexto(pergunta, colecao, n_results=3):
@@ -163,4 +160,5 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
     
 
     st.session_state.messages.append({"role": "assistant", "content": resposta_final})
+
 
