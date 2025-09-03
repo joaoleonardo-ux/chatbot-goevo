@@ -1,7 +1,6 @@
 import streamlit as st
-import google.generativeai as genai
+import openai
 import chromadb
-import unicodedata
 
 # --- Configuração da Página ---
 st.set_page_config(page_title="GoEvo Assist", page_icon="🤖")
@@ -10,7 +9,7 @@ st.caption("Faça uma pergunta.")
 
 # --- Configuração Segura das Chaves de API ---
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
@@ -18,7 +17,8 @@ except (FileNotFoundError, KeyError):
     st.error("ERRO: As chaves de API não foram encontradas. Configure seu arquivo .streamlit/secrets.toml")
     st.stop()
 
-genai.configure(api_key=GOOGLE_API_KEY)
+# Cliente da OpenAI
+client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # --- Funções do Agente de IA ---
 
@@ -35,23 +35,28 @@ def carregar_colecao_chroma():
         st.error(f"Erro ao conectar com o ChromaDB: {e}")
         return None
 
-# --- NOVA FUNÇÃO DE CLASSIFICAÇÃO DE INTENÇÃO COM GEMINI ---
-def identificar_intencao_gemini(pergunta):
+# --- NOVA FUNÇÃO DE CLASSIFICAÇÃO DE INTENÇÃO COM OPENAI ---
+def identificar_intencao_openai(pergunta):
+    """
+    Usa a IA da OpenAI para classificar a intenção do usuário.
+    """
     try:
         prompt_classificador = f"""
-        Classifique a frase do usuário em uma de duas categorias: SAUDACAO ou PERGUNTA_TECNICA.
+        Você é um classificador de intenção. Analise a frase do usuário e classifique-a em uma de duas categorias: SAUDACAO ou PERGUNTA_TECNICA.
         - SAUDACAO: Cumprimentos, conversas casuais (oi, olá, tudo bem?), agradecimentos, despedidas.
         - PERGUNTA_TECNICA: Dúvidas sobre o sistema, pedidos de ajuda, perguntas sobre funcionalidades.
         Responda APENAS com a palavra SAUDACAO ou a palavra PERGUNTA_TECNICA.
 
         Frase do usuário: "{pergunta}"
         """
-        model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
-        # Configuração para uma resposta curta e rápida
-        config = genai.types.GenerationConfig(max_output_tokens=5, temperature=0)
         
-        resposta = model.generate_content(prompt_classificador, generation_config=config)
-        intencao = resposta.text.strip().upper()
+        resposta = client_openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt_classificador}],
+            temperature=0,
+            max_tokens=5
+        )
+        intencao = resposta.choices[0].message.content.strip().upper()
         
         if "SAUDACAO" in intencao:
             return "SAUDACAO"
@@ -60,16 +65,20 @@ def identificar_intencao_gemini(pergunta):
             
     except Exception as e:
         print(f"Erro na classificação de intenção: {e}")
-        return "PERGUNTA_TECNICA" # Em caso de erro, assume que é pergunta técnica
+        return "PERGUNTA_TECNICA"
 
 def buscar_contexto(pergunta, colecao, n_results=5):
     if colecao is None: return "", None
     
-    embedding_pergunta = genai.embed_content(
-        model="models/text-embedding-004", content=pergunta, task_type="RETRIEVAL_QUERY"
-    )["embedding"]
+    embedding_pergunta = client_openai.embeddings.create(
+        input=[pergunta], model="text-embedding-3-small"
+    ).data[0].embedding
 
-    resultados = colecao.query(query_embeddings=[embedding_pergunta], n_results=n_results)
+    resultados = colecao.query(
+        query_embeddings=[embedding_pergunta],
+        n_results=n_results
+    )
+    
     contexto_completo = resultados['metadatas'][0]
     chunks_relevantes = [doc['texto_original'] for doc in contexto_completo]
     contexto_texto = "\n\n---\n\n".join(chunks_relevantes)
@@ -82,18 +91,25 @@ def buscar_contexto(pergunta, colecao, n_results=5):
             
     return contexto_texto, video_url
 
-def gerar_resposta_com_gemini(pergunta, contexto):
-    # Coloque seu prompt profissional aqui
+def gerar_resposta_com_gpt(pergunta, contexto):
+    # Insira aqui o seu prompt profissional que criamos
     prompt_sistema = """
     ## Persona:
-    Você é o GoEvo Assist, o especialista virtual... 
-    (etc...)
+    Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo. Sua personalidade é profissional, prestativa e didática...
+    (etc, seu prompt completo)
     """
-    model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
-    resposta = model.generate_content(f"{prompt_sistema}\n\n**CONTEXTO:**\n{contexto}\n\n**PERGUNTA DO USUÁRIO:**\n{pergunta}")
-    return resposta.text
+    
+    resposta = client_openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": prompt_sistema},
+            {"role": "user", "content": f"**CONTEXTO:**\n{contexto}\n\n**PERGUNTA:**\n{pergunta}"}
+        ],
+        temperature=0.7
+    )
+    return resposta.choices[0].message.content
 
-# --- Lógica da Interface do Chat (ATUALIZADA) ---
+# --- Lógica da Interface do Chat ---
 RESPOSTA_SAUDACAO = "Olá! Eu sou o Léo, assistente virtual da GoEvo. Como posso te ajudar com o sistema hoje?"
 colecao = carregar_colecao_chroma()
 
@@ -115,21 +131,20 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
         with st.spinner("Pensando..."):
             
             resposta_final = ""
-            video_para_mostrar = None # <-- Garante que o vídeo começa como nulo
+            video_para_mostrar = None
             
-            # --- NOVA LÓGICA DE ROTEAMENTO COM IA ---
-            intencao = identificar_intencao_gemini(pergunta_usuario)
+            # --- LÓGICA DE ROTEAMENTO COM IA (OpenAI) ---
+            intencao = identificar_intencao_openai(pergunta_usuario)
 
             # Rota 1: Saudação
             if intencao == "SAUDACAO":
                 resposta_final = RESPOSTA_SAUDACAO
-                # video_para_mostrar continua nulo, como esperado.
             
             # Rota 2: Pergunta Técnica
-            else: # PERGUNTA_TECNICA
+            else:
                 if colecao is not None:
                     contexto_relevante, video_encontrado = buscar_contexto(pergunta_usuario, colecao)
-                    resposta_final = gerar_resposta_com_gemini(pergunta_usuario, contexto_relevante)
+                    resposta_final = gerar_resposta_com_gpt(pergunta_usuario, contexto_relevante)
                     video_para_mostrar = video_encontrado
                 else:
                     resposta_final = "Desculpe, estou com problemas para acessar a base de conhecimento."
