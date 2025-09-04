@@ -7,7 +7,7 @@ st.set_page_config(page_title="GoEvo Assist", page_icon="🤖")
 st.title("🤖 Agente de Suporte GoEvo Compras")
 st.caption("Faça uma pergunta.")
 
-# --- Configuração Segura das Chaves de API ---
+# --- Configuração das Chaves de API ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
@@ -17,101 +17,125 @@ except (FileNotFoundError, KeyError):
     st.error("ERRO: As chaves de API não foram encontradas. Configure seu arquivo .streamlit/secrets.toml")
     st.stop()
 
-# Cliente da OpenAI
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # --- Funções do Agente de IA ---
-
 @st.cache_resource
-def carregar_colecao_chroma():
+def carregar_colecoes_chroma():
     try:
         client = chromadb.CloudClient(
             api_key=CHROMA_API_KEY, tenant=CHROMA_TENANT, database=CHROMA_DATABASE
         )
-        collection = client.get_collection("manual_do_sistema_v2")
-        st.success("Conectado à base de conhecimento (ChromaDB)!")
-        return collection
+        colecao_funcionalidades = client.get_collection("colecao_funcionalidades")
+        colecao_parametros = client.get_collection("colecao_parametros")
+        st.success("Conectado aos especialistas de Funcionalidades e Parâmetros!")
+        return colecao_funcionalidades, colecao_parametros
     except Exception as e:
-        st.error(f"Erro ao conectar com o ChromaDB: {e}")
-        return None
+        st.error(f"Erro ao conectar com a base de conhecimento: {e}")
+        return None, None
 
-# --- NOVA FUNÇÃO DE CLASSIFICAÇÃO DE INTENÇÃO COM OPENAI ---
-def identificar_intencao_openai(pergunta):
+def rotear_pergunta(pergunta):
+    prompt_roteador = f"""
+    Você é um roteador de perguntas para um assistente de suporte de sistema.
+    Classifique a pergunta do usuário em uma de três categorias: SAUDACAO, FUNCIONALIDADE ou PARAMETRO.
+
+    - SAUDACAO: Cumprimentos, conversas casuais (oi, olá, tudo bem?).
+    - FUNCIONALIDADE: Perguntas sobre COMO FAZER algo no sistema (ex: "como eu crio uma cotação?", "onde eu aprovo a SC?", "tem vídeo de como cadastrar produto?").
+    - PARAMETRO: Perguntas sobre O QUE É ou COMO CONFIGURAR um parâmetro (ex: "o que faz o parâmetro Liberação de SC?", "quais os parâmetros da omie?", "onde configuro o centro de custo?").
+
+    Responda APENAS com a palavra SAUDACAO, FUNCIONALIDADE ou PARAMETRO.
+
+    Pergunta do usuário: "{pergunta}"
     """
-    Usa a IA da OpenAI para classificar a intenção do usuário.
+    resposta = client_openai.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt_roteador}],
+        temperature=0, max_tokens=10
+    )
+    intencao = resposta.choices[0].message.content.strip().upper()
+    if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
+    if "PARAMETRO" in intencao: return "PARAMETRO"
+    return "SAUDACAO"
+
+# --- FUNÇÃO DE BUSCA ATUALIZADA ---
+def buscar_contexto(pergunta, colecao, n_results=15): # <-- AJUSTE 1: Aumentado para 15
     """
-    try:
-        prompt_classificador = f"""
-        Você é um classificador de intenção. Analise a frase do usuário e classifique-a em uma de duas categorias: SAUDACAO ou PERGUNTA_TECNICA.
-        - SAUDACAO: Cumprimentos, conversas casuais (oi, olá, tudo bem?), agradecimentos, despedidas.
-        - PERGUNTA_TECNICA: Dúvidas sobre o sistema, pedidos de ajuda, perguntas sobre funcionalidades.
-        Responda APENAS com a palavra SAUDACAO ou a palavra PERGUNTA_TECNICA.
-
-        Frase do usuário: "{pergunta}"
-        """
-        
-        resposta = client_openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt_classificador}],
-            temperature=0,
-            max_tokens=5
-        )
-        intencao = resposta.choices[0].message.content.strip().upper()
-        
-        if "SAUDACAO" in intencao:
-            return "SAUDACAO"
-        else:
-            return "PERGUNTA_TECNICA"
-            
-    except Exception as e:
-        print(f"Erro na classificação de intenção: {e}")
-        return "PERGUNTA_TECNICA"
-
-def buscar_contexto(pergunta, colecao, n_results=5):
+    Busca os chunks, usa todos para o contexto de TEXTO,
+    mas usa APENAS O MAIS RELEVANTE para o VÍDEO.
+    """
     if colecao is None: return "", None
     
-    embedding_pergunta = client_openai.embeddings.create(
-        input=[pergunta], model="text-embedding-3-small"
-    ).data[0].embedding
-
+    embedding_pergunta = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small").data[0].embedding
+    
     resultados = colecao.query(
         query_embeddings=[embedding_pergunta],
         n_results=n_results
     )
     
-    contexto_completo = resultados['metadatas'][0]
-    chunks_relevantes = [doc['texto_original'] for doc in contexto_completo]
-    contexto_texto = "\n\n---\n\n".join(chunks_relevantes)
+    metadados_completos = resultados.get('metadatas', [[]])[0]
+    
+    contexto_texto = ""
+    if metadados_completos:
+        contexto_texto = "\n\n---\n\n".join([doc['texto_original'] for doc in metadados_completos])
     
     video_url = None
-    for doc in contexto_completo:
-        if doc.get('video_url'): 
-            video_url = doc['video_url']
-            break
+    if metadados_completos:
+        primeiro_resultado_meta = metadados_completos[0]
+        video_url = primeiro_resultado_meta.get('video_url')
             
     return contexto_texto, video_url
 
-def gerar_resposta_com_gpt(pergunta, contexto):
-    # Insira aqui o seu prompt profissional que criamos
-    prompt_sistema = """
-    ## Persona:
-    Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo. Sua personalidade é profissional, prestativa e didática...
-    (etc, seu prompt completo)
-    """
-    
+def gerar_resposta_com_gpt(pergunta, contexto, prompt_especialista):
     resposta = client_openai.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o",
         messages=[
-            {"role": "system", "content": prompt_sistema},
+            {"role": "system", "content": prompt_especialista},
             {"role": "user", "content": f"**CONTEXTO:**\n{contexto}\n\n**PERGUNTA:**\n{pergunta}"}
         ],
-        temperature=0.7
+        temperature=0.5
     )
     return resposta.choices[0].message.content
 
-# --- Lógica da Interface do Chat ---
-RESPOSTA_SAUDACAO = "Olá! Eu sou o Léo, assistente virtual da GoEvo. Como posso te ajudar com o sistema hoje?"
-colecao = carregar_colecao_chroma()
+# --- Definição dos Prompts dos Especialistas ---
+prompt_assistente_funcionalidades = """
+## Persona:
+Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo. Sua personalidade é profissional, prestativa e didática.
+## Objetivo Principal:
+Seu objetivo é guiar os usuários de forma proativa para que eles consigam realizar o processo de compras com sucesso e autonomia, utilizando as melhores práticas do sistema.
+## Regras de Comportamento e Tom de Voz:
+1. Seja Proativo: Após responder a pergunta principal, se o contexto permitir, sugira o próximo passo lógico ou uma funcionalidade relacionada.
+2. Seja Claro e Estruturado: Sempre que a resposta envolver um processo, formate-a em passos numerados (1., 2., 3.).
+3. Seja Interativo: Termine suas respostas com uma pergunta aberta como "Isso te ajudou?" ou "Posso te ajudar com mais algum detalhe?".
+## Regras Rígidas de Uso do Contexto:
+1. Sua resposta deve ser baseada única e exclusivamente nas informações contidas no CONTEXTO.
+2. Se a resposta não estiver no CONTEXTO, responda: "Não encontrei informações sobre isso em nossa base de conhecimento. Você poderia tentar perguntar de uma forma diferente?".
+"""
+
+# <-- AJUSTE 2: Prompt do Especialista em Parâmetros Aprimorado
+prompt_especialista_parametros = """
+## Persona:
+Você é o GoEvo Assist, um especialista técnico nos parâmetros de configuração do sistema de compras GoEvo. Sua personalidade é precisa, completa e informativa.
+
+## Objetivo Principal:
+Seu objetivo é listar e explicar de forma clara todos os parâmetros relevantes encontrados no contexto que respondam à pergunta do usuário.
+
+## Regras de Comportamento e Tom de Voz:
+1.  **Seja Completo:** Se o contexto contiver múltiplos parâmetros que se encaixam na pergunta do usuário (ex: "parâmetros do omie"), **liste TODOS eles**. Não resuma ou omita informações.
+2.  **Formate com Clareza:** Para cada parâmetro, estruture a resposta da seguinte forma, usando os dados do contexto:
+    * **Parâmetro:** (Use o "Titulo do Parametro")
+    * **Finalidade:** (Use a "Sugestão de Descrição")
+    * **Quando é Utilizado:** (Use o "Quando é utilizado")
+    * **Dependências:** (Use o "Necessário ativação de outro parametro")
+3.  **Use Negrito:** Destaque os títulos de cada seção (como **Finalidade:**) para facilitar a leitura.
+
+## Regras Rígidas de Uso do Contexto:
+1.  **REGRA MAIS IMPORTANTE:** Sua resposta deve ser baseada **única e exclusivamente** nas informações contidas no **CONTEXTO**.
+2.  **SE A RESPOSTA NÃO ESTIVER NO CONTEXTO:** Se o contexto não contiver informações para responder à pergunta, diga: "Não encontrei detalhes sobre este(s) parâmetro(s) em nossa base de conhecimento. Poderia ser mais específico?".
+"""
+
+# --- Lógica da Interface do Chat com Roteamento ---
+RESPOSTA_SAUDACAO = "Olá! Eu sou o GoEvo Assist. Posso te ajudar com dúvidas sobre funcionalidades ou parâmetros do sistema. O que você gostaria de saber?"
+colecao_func, colecao_param = carregar_colecoes_chroma()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -128,26 +152,40 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
         st.markdown(pergunta_usuario)
 
     with st.chat_message("assistant"):
-        with st.spinner("Pensando..."):
+        with st.spinner("Analisando sua pergunta..."):
             
             resposta_final = ""
             video_para_mostrar = None
             
-            # --- LÓGICA DE ROTEAMENTO COM IA (OpenAI) ---
-            intencao = identificar_intencao_openai(pergunta_usuario)
-
-            # Rota 1: Saudação
+            intencao = rotear_pergunta(pergunta_usuario)
+            
             if intencao == "SAUDACAO":
                 resposta_final = RESPOSTA_SAUDACAO
             
-            # Rota 2: Pergunta Técnica
-            else:
-                if colecao is not None:
-                    contexto_relevante, video_encontrado = buscar_contexto(pergunta_usuario, colecao)
-                    resposta_final = gerar_resposta_com_gpt(pergunta_usuario, contexto_relevante)
-                    video_para_mostrar = video_encontrado
+            else: # Se for FUNCIONALIDADE ou PARAMETRO
+                colecao_para_buscar = None
+                prompt_para_usar = None
+                
+                if intencao == "FUNCIONALIDADE":
+                    st.spinner("Consultando o especialista em funcionalidades...")
+                    colecao_para_buscar = colecao_func
+                    prompt_para_usar = prompt_assistente_funcionalidades
+                
+                elif intencao == "PARAMETRO":
+                    st.spinner("Consultando o especialista em parâmetros...")
+                    colecao_para_buscar = colecao_param
+                    prompt_para_usar = prompt_especialista_parametros
+
+                if colecao_para_buscar:
+                    contexto, video_encontrado = buscar_contexto(pergunta_usuario, colecao_para_buscar)
+                    resposta_final = gerar_resposta_com_gpt(pergunta_usuario, contexto, prompt_para_usar)
+                    
+                    if "Não encontrei" in resposta_final:
+                        video_para_mostrar = None
+                    else:
+                        video_para_mostrar = video_encontrado
                 else:
-                    resposta_final = "Desculpe, estou com problemas para acessar a base de conhecimento."
+                    resposta_final = "Desculpe, a base de conhecimento necessária não está disponível."
             
             st.markdown(resposta_final)
             if video_para_mostrar:
