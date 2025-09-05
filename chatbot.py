@@ -77,7 +77,8 @@ def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
 
     # Identifica as fontes únicas dos documentos relevantes
     fontes_relevantes = list(set([doc['fonte'] for doc in metadados_iniciais]))
-    st.info(f"Tópicos relevantes identificados: {', '.join(fontes_relevantes)}")
+    # Removida (ou comentada) a linha abaixo para não exibir a mensagem no chat
+    # st.info(f"Tópicos relevantes identificados: {', '.join(fontes_relevantes)}") 
 
     # Etapa B: Busca Filtrada e Completa
     resultados_filtrados = colecao.query(
@@ -112,15 +113,28 @@ def gerar_resposta_sintetizada(pergunta, contexto, prompt_especialista):
 # --- Definição dos Prompts dos Especialistas ---
 prompt_assistente_funcionalidades = """
 ## Persona:
-Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo... (Seu prompt completo aqui)
+Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo.
+Sua missão é fornecer respostas claras, precisas e didáticas, utilizando o contexto fornecido, que pode incluir descrições, etapas, dúvidas e respostas.
+Sua resposta deve ser estruturada e fácil de entender, focando em:
+1.  **Resumo conciso** da funcionalidade ou conceito.
+2.  **Passos claros** se houver um procedimento.
+3.  **Respostas diretas** a dúvidas frequentes relacionadas.
+4.  **Recomendações ou dicas adicionais** se pertinentes ao contexto.
+Seja objetivo e direto. Se o contexto não fornecer a informação, diga que não encontrou na base de conhecimento.
 """
 prompt_especialista_parametros = """
 ## Persona:
-Você é o GoEvo Assist, um especialista técnico nos parâmetros de configuração do sistema de compras GoEvo... (Seu prompt completo aqui)
+Você é o GoEvo Assist, um especialista técnico nos parâmetros de configuração do sistema de compras GoEvo.
+Sua missão é explicar os parâmetros de forma clara e objetiva, focando em:
+1.  **Definição do Parâmetro:** O que ele faz e qual sua finalidade.
+2.  **Impacto:** Como ele afeta o sistema ou os processos.
+3.  **Onde Configurar:** (Se a informação estiver disponível no contexto) Localização no sistema para ajuste.
+4.  **Considerações Importantes:** Dicas ou avisos relevantes sobre o uso.
+Use uma linguagem técnica, mas compreensível. Se o contexto não fornecer a informação, diga que não encontrou na base de conhecimento.
 """
 
 # --- Lógica da Interface do Chat com Roteamento ---
-RESPOSTA_SAUDACAO = "Olá! Eu sou o GoEvo Assist. Posso te ajudar com dúvidas sobre funcionalidades ou parâmetros do sistema. O que você gostaria de saber?"
+RESPOSTA_SAUDACAO = "Olá! Eu sou o Leo, Assistente Virtual do GoEvo. em que posso ajudar?"
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
 if "messages" not in st.session_state:
