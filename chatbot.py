@@ -23,11 +23,14 @@ client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 @st.cache_resource
 def carregar_colecoes_chroma():
     try:
-        client = chromadb.CloudClient(
-            api_key=CHROMA_API_KEY, tenant=CHROMA_TENANT, database=CHROMA_DATABASE
+        # A anotação _client é para indicar que esta variável é interna da função cacheada
+        _client = chromadb.CloudClient(
+            api_key=st.secrets["CHROMA_API_KEY"], 
+            tenant=st.secrets["CHROMA_TENANT"], 
+            database=st.secrets["CHROMA_DATABASE"]
         )
-        colecao_funcionalidades = client.get_collection("colecao_funcionalidades")
-        colecao_parametros = client.get_collection("colecao_parametros")
+        colecao_funcionalidades = _client.get_collection("colecao_funcionalidades")
+        colecao_parametros = _client.get_collection("colecao_parametros")
         st.success("Conectado aos especialistas de Funcionalidades e Parâmetros!")
         return colecao_funcionalidades, colecao_parametros
     except Exception as e:
@@ -57,40 +60,50 @@ def rotear_pergunta(pergunta):
     if "PARAMETRO" in intencao: return "PARAMETRO"
     return "SAUDACAO"
 
-# --- FUNÇÃO DE BUSCA ATUALIZADA ---
-def buscar_contexto(pergunta, colecao, n_results=15): # <-- AJUSTE 1: Aumentado para 15
-    """
-    Busca os chunks, usa todos para o contexto de TEXTO,
-    mas usa APENAS O MAIS RELEVANTE para o VÍDEO.
-    """
+def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
     if colecao is None: return "", None
-    
+
+    # Etapa A: Recuperação Ampla
     embedding_pergunta = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small").data[0].embedding
-    
-    resultados = colecao.query(
+    resultados_iniciais = colecao.query(
         query_embeddings=[embedding_pergunta],
-        n_results=n_results
+        n_results=n_results_inicial
     )
     
-    metadados_completos = resultados.get('metadatas', [[]])[0]
+    metadados_iniciais = resultados_iniciais.get('metadatas', [[]])[0]
     
-    contexto_texto = ""
-    if metadados_completos:
-        contexto_texto = "\n\n---\n\n".join([doc['texto_original'] for doc in metadados_completos])
+    if not metadados_iniciais:
+        return "", None
+
+    # Identifica as fontes únicas dos documentos relevantes
+    fontes_relevantes = list(set([doc['fonte'] for doc in metadados_iniciais]))
+    st.info(f"Tópicos relevantes identificados: {', '.join(fontes_relevantes)}")
+
+    # Etapa B: Busca Filtrada e Completa
+    resultados_filtrados = colecao.query(
+        query_embeddings=[embedding_pergunta],
+        where={"fonte": {"$in": fontes_relevantes}},
+        n_results=50 
+    )
+
+    metadados_completos = resultados_filtrados.get('metadatas', [[]])[0]
+
+    if not metadados_completos:
+        return "", None
+
+    # Etapa C: Monta o "Super-Documento"
+    contexto_texto = "\n\n---\n\n".join([doc['texto_original'] for doc in metadados_completos])
     
-    video_url = None
-    if metadados_completos:
-        primeiro_resultado_meta = metadados_completos[0]
-        video_url = primeiro_resultado_meta.get('video_url')
+    video_url = metadados_iniciais[0].get('video_url')
             
     return contexto_texto, video_url
 
-def gerar_resposta_com_gpt(pergunta, contexto, prompt_especialista):
+def gerar_resposta_sintetizada(pergunta, contexto, prompt_especialista):
     resposta = client_openai.chat.completions.create(
         model="gpt-4o",
         messages=[
             {"role": "system", "content": prompt_especialista},
-            {"role": "user", "content": f"**CONTEXTO:**\n{contexto}\n\n**PERGUNTA:**\n{pergunta}"}
+            {"role": "user", "content": f"**CONTEXTO COMPLETO (DE VÁRIAS FONTES):**\n{contexto}\n\n**PERGUNTA DO USUÁRIO:**\n{pergunta}"}
         ],
         temperature=0.5
     )
@@ -99,38 +112,11 @@ def gerar_resposta_com_gpt(pergunta, contexto, prompt_especialista):
 # --- Definição dos Prompts dos Especialistas ---
 prompt_assistente_funcionalidades = """
 ## Persona:
-Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo. Sua personalidade é profissional, prestativa e didática.
-## Objetivo Principal:
-Seu objetivo é guiar os usuários de forma proativa para que eles consigam realizar o processo de compras com sucesso e autonomia, utilizando as melhores práticas do sistema.
-## Regras de Comportamento e Tom de Voz:
-1. Seja Proativo: Após responder a pergunta principal, se o contexto permitir, sugira o próximo passo lógico ou uma funcionalidade relacionada.
-2. Seja Claro e Estruturado: Sempre que a resposta envolver um processo, formate-a em passos numerados (1., 2., 3.).
-3. Seja Interativo: Termine suas respostas com uma pergunta aberta como "Isso te ajudou?" ou "Posso te ajudar com mais algum detalhe?".
-## Regras Rígidas de Uso do Contexto:
-1. Sua resposta deve ser baseada única e exclusivamente nas informações contidas no CONTEXTO.
-2. Se a resposta não estiver no CONTEXTO, responda: "Não encontrei informações sobre isso em nossa base de conhecimento. Você poderia tentar perguntar de uma forma diferente?".
+Você é o GoEvo Assist, o especialista virtual e assistente de treinamento do sistema de compras GoEvo... (Seu prompt completo aqui)
 """
-
-# <-- AJUSTE 2: Prompt do Especialista em Parâmetros Aprimorado
 prompt_especialista_parametros = """
 ## Persona:
-Você é o GoEvo Assist, um especialista técnico nos parâmetros de configuração do sistema de compras GoEvo. Sua personalidade é precisa, completa e informativa.
-
-## Objetivo Principal:
-Seu objetivo é listar e explicar de forma clara todos os parâmetros relevantes encontrados no contexto que respondam à pergunta do usuário.
-
-## Regras de Comportamento e Tom de Voz:
-1.  **Seja Completo:** Se o contexto contiver múltiplos parâmetros que se encaixam na pergunta do usuário (ex: "parâmetros do omie"), **liste TODOS eles**. Não resuma ou omita informações.
-2.  **Formate com Clareza:** Para cada parâmetro, estruture a resposta da seguinte forma, usando os dados do contexto:
-    * **Parâmetro:** (Use o "Titulo do Parametro")
-    * **Finalidade:** (Use a "Sugestão de Descrição")
-    * **Quando é Utilizado:** (Use o "Quando é utilizado")
-    * **Dependências:** (Use o "Necessário ativação de outro parametro")
-3.  **Use Negrito:** Destaque os títulos de cada seção (como **Finalidade:**) para facilitar a leitura.
-
-## Regras Rígidas de Uso do Contexto:
-1.  **REGRA MAIS IMPORTANTE:** Sua resposta deve ser baseada **única e exclusivamente** nas informações contidas no **CONTEXTO**.
-2.  **SE A RESPOSTA NÃO ESTIVER NO CONTEXTO:** Se o contexto não contiver informações para responder à pergunta, diga: "Não encontrei detalhes sobre este(s) parâmetro(s) em nossa base de conhecimento. Poderia ser mais específico?".
+Você é o GoEvo Assist, um especialista técnico nos parâmetros de configuração do sistema de compras GoEvo... (Seu prompt completo aqui)
 """
 
 # --- Lógica da Interface do Chat com Roteamento ---
@@ -162,28 +148,21 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
             if intencao == "SAUDACAO":
                 resposta_final = RESPOSTA_SAUDACAO
             
-            else: # Se for FUNCIONALIDADE ou PARAMETRO
-                colecao_para_buscar = None
-                prompt_para_usar = None
+            else:
+                colecao_para_buscar = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
+                prompt_para_usar = prompt_assistente_funcionalidades if intencao == "FUNCIONALIDADE" else prompt_especialista_parametros
                 
-                if intencao == "FUNCIONALIDADE":
-                    st.spinner("Consultando o especialista em funcionalidades...")
-                    colecao_para_buscar = colecao_func
-                    prompt_para_usar = prompt_assistente_funcionalidades
-                
-                elif intencao == "PARAMETRO":
-                    st.spinner("Consultando o especialista em parâmetros...")
-                    colecao_para_buscar = colecao_param
-                    prompt_para_usar = prompt_especialista_parametros
-
                 if colecao_para_buscar:
-                    contexto, video_encontrado = buscar_contexto(pergunta_usuario, colecao_para_buscar)
-                    resposta_final = gerar_resposta_com_gpt(pergunta_usuario, contexto, prompt_para_usar)
+                    st.spinner(f"Consultando especialista em {intencao.lower()}...")
                     
-                    if "Não encontrei" in resposta_final:
-                        video_para_mostrar = None
-                    else:
+                    contexto_sintetizado, video_encontrado = buscar_e_sintetizar_contexto(pergunta_usuario, colecao_para_buscar)
+                    
+                    if contexto_sintetizado:
+                        st.spinner("Elaborando a melhor resposta...")
+                        resposta_final = gerar_resposta_sintetizada(pergunta_usuario, contexto_sintetizado, prompt_para_usar)
                         video_para_mostrar = video_encontrado
+                    else:
+                        resposta_final = "Não encontrei informações sobre isso em nossa base de conhecimento. Você poderia tentar perguntar de uma forma diferente?"
                 else:
                     resposta_final = "Desculpe, a base de conhecimento necessária não está disponível."
             
