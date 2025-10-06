@@ -2,6 +2,26 @@ import streamlit as st
 import openai
 import chromadb
 
+# --- CÓDIGO PARA AJUSTE VISUAL (CSS) ---
+# Adicionado para controlar o tamanho da fonte do título e os preenchimentos.
+st.markdown("""
+<style>
+    /* Reduz o tamanho da fonte do título principal (h1) */
+    h1 {
+        font-size: 2.1rem !important; /* Você pode ajustar este valor se desejar (ex: 2.0rem, 2.2rem) */
+    }
+    
+    /* Remove o padding (preenchimento) excessivo do container principal para caber melhor no iframe */
+    div.block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1rem;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
 # --- Configuração da Página ---
 st.set_page_config(page_title="GoEvo Assist", page_icon="🤖")
 st.title("🤖 Leo - Assistente Virtual")
@@ -200,4 +220,3 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
     if video_para_mostrar:
         mensagem_assistente["video"] = video_para_mostrar
     st.session_state.messages.append(mensagem_assistente)
-
