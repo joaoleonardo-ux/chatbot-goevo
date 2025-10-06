@@ -4,7 +4,7 @@ import chromadb
 
 # --- Configuração da Página ---
 st.set_page_config(page_title="GoEvo Assist", page_icon="🤖")
-st.title("🤖 Agente de Suporte GoEvo Compras")
+st.title("🤖 Leo - Assistente Virtual")
 st.caption("Faça uma pergunta.")
 
 # --- Configuração das Chaves de API ---
@@ -31,7 +31,6 @@ def carregar_colecoes_chroma():
         )
         colecao_funcionalidades = _client.get_collection("colecao_funcionalidades")
         colecao_parametros = _client.get_collection("colecao_parametros")
-        st.success("Conectado aos especialistas de Funcionalidades e Parâmetros!")
         return colecao_funcionalidades, colecao_parametros
     except Exception as e:
         st.error(f"Erro ao conectar com a base de conhecimento: {e}")
@@ -201,3 +200,4 @@ if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
     if video_para_mostrar:
         mensagem_assistente["video"] = video_para_mostrar
     st.session_state.messages.append(mensagem_assistente)
+
