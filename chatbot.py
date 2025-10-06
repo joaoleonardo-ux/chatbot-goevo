@@ -3,20 +3,32 @@ import openai
 import chromadb
 
 # --- CÓDIGO PARA AJUSTE VISUAL (CSS) ---
-# Adicionado para controlar o tamanho da fonte do título e os preenchimentos.
+# Adicionado para controlar o tamanho da fonte, preenchimentos, quebra de linha e rodapé.
 st.markdown("""
 <style>
     /* Reduz o tamanho da fonte do título principal (h1) */
     h1 {
-        font-size: 2.1rem !important; /* Você pode ajustar este valor se desejar (ex: 2.0rem, 2.2rem) */
+        font-size: 2.1rem !important;
     }
     
-    /* Remove o padding (preenchimento) excessivo do container principal para caber melhor no iframe */
+    /* Remove o padding (preenchimento) excessivo do container principal */
     div.block-container {
         padding-top: 1.5rem;
         padding-bottom: 1rem;
         padding-left: 1.5rem;
         padding-right: 1.5rem;
+    }
+
+    /* --- NOVAS REGRAS ADICIONADAS --- */
+
+    /* 1. Força a quebra de linha dentro dos balões de chat */
+    div[data-testid="stChatMessageContent"] p {
+        overflow-wrap: break-word;
+    }
+
+    /* 2. Esconde o rodapé "Built with Streamlit" */
+    [data-testid="stFooter"] {
+        display: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
