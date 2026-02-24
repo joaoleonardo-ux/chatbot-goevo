@@ -2,7 +2,7 @@ import streamlit as st
 import openai
 import chromadb
 import os
-from collections import Counter # <-- IMPORTAÇÃO NOVA NECESSÁRIA PARA O AJUSTE
+from collections import Counter
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
@@ -134,48 +134,77 @@ Pergunta: '{pergunta}'"""
         st.error(f"Erro ao rotear pergunta com OpenAI: {e}")
         return "SAUDACAO" # Fallback seguro
 
+# --- AJUSTE PRINCIPAL NA FUNÇÃO DE BUSCA ---
 def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
     if colecao is None:
         st.warning("Tentativa de busca em uma coleção inexistente.")
         return "", None
     try:
+        # print(f"\n--- DEBUG BUSCA: '{pergunta}' ---")
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
         
-        # Busca os N resultados mais similares (ex: top 10)
+        # --- ETAPA 1: Identificar o feature_name mais provável ---
+        # Busca inicial para ver o que aparece
         res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
         meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
         
-        if not meta_iniciais: return "", None
+        if not meta_iniciais:
+            # print("DEBUG: Nenhum resultado na busca inicial.")
+            return "", None
 
-        # --- INÍCIO DO AJUSTE: Lógica de Seleção do Vídeo mais Frequente ---
+        # Extrai os feature_names dos resultados iniciais. Se não tiver feature_name, usa 'fonte' como fallback.
+        feature_names_encontrados = []
+        for m in meta_iniciais:
+            fn = m.get('feature_name')
+            if fn:
+                feature_names_encontrados.append(fn)
+            else:
+                # Fallback para 'fonte' se 'feature_name' não existir (para compatibilidade com dados antigos)
+                src = m.get('fonte')
+                if src:
+                     feature_names_encontrados.append(src)
+        
+        filtros = {}
+        if feature_names_encontrados:
+            # Encontra o feature_name (ou fonte) mais comum nos resultados
+            feature_mais_comum = Counter(feature_names_encontrados).most_common(1)[0][0]
+            # print(f"DEBUG: Funcionalidade identificada como filtro: '{feature_mais_comum}'")
+            # Cria o filtro para a próxima busca. Tenta filtrar por 'feature_name', se falhar, tenta por 'fonte'.
+            filtros = {"$or": [{"feature_name": {"$eq": feature_mais_comum}}, {"fonte": {"$eq": feature_mais_comum}}]}
+        else:
+            # print("DEBUG: Não foi possível identificar um feature_name ou fonte para filtrar.")
+            return "", None
+
+        # --- ETAPA 2: Busca Focada e Recuperação de Vídeo ---
+        # Realiza a busca novamente, mas agora APLICANDO O FILTRO
+        # Isso garante que só vamos pegar documentos da funcionalidade correta
+        res_filtrados = colecao.query(query_embeddings=[emb], where=filtros, n_results=20)
+        meta_filtrados = res_filtrados.get('metadatas', [[]])[0]
+
+        if not meta_filtrados:
+             # print("DEBUG: Nenhum resultado encontrado após aplicar o filtro.")
+             return "", None
+
+        # A lógica de seleção de vídeo fica muito mais simples e precisa agora.
+        # Como já filtramos pela funcionalidade correta, podemos pegar o vídeo do primeiro resultado que tiver um.
         video = None
-        # Extrai URLs de vídeo válidas (não nulas e não vazias) dos resultados iniciais
-        videos_encontrados = [m.get('video_url') for m in meta_iniciais if m.get('video_url')]
-
-        if videos_encontrados:
-            # Usa Counter para encontrar o vídeo mais comum na lista
-            # most_common(1) retorna uma lista com uma tupla: [(video_url, contagem)]
-            video_mais_comum = Counter(videos_encontrados).most_common(1)
-            if video_mais_comum:
-                # Pega a URL do primeiro elemento da tupla
-                video = video_mais_comum[0][0]
-        # --- FIM DO AJUSTE ---
-
-        # Garante que a chave 'fonte' existe para evitar KeyErrors na filtragem
-        fontes = list(set([doc.get('fonte') for doc in meta_iniciais if doc.get('fonte')]))
+        for m in meta_filtrados:
+            v_url = m.get('video_url')
+            if v_url:
+                video = v_url
+                # print(f"DEBUG: Vídeo selecionado: {video}")
+                break
         
-        # Expande a busca para pegar todo o contexto das fontes identificadas
-        res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
-        meta_completos = res_filtrados.get('metadatas', [[]])[0]
-        
-        # Monta o contexto final
-        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_completos if doc.get('texto_original')])
+        # Monta o contexto a partir dos resultados filtrados
+        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_filtrados if doc.get('texto_original')])
         
         return contexto, video
     except Exception as e:
         st.error(f"Erro durante busca e síntese de contexto: {e}")
+        # print(f"DEBUG ERRO: {e}")
         return "", None
+# --- FIM DO AJUSTE ---
 
 def gerar_resposta_sintetizada(pergunta, contexto, prompt_sistema):
     prompt_usuario = f"""Use o seguinte contexto para responder à pergunta do usuário.
