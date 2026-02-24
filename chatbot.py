@@ -2,26 +2,22 @@ import streamlit as st
 import openai
 import chromadb
 import os
-from collections import Counter
+# A importação de Counter não é mais necessária nesta abordagem, mas pode deixar
+from collections import Counter 
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
+# --- 2. Injeção de CSS (Mantido igual) ---
 st.markdown("""
 <style>
-    /* Esconde Header, Footer e Menus nativos */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
-    
-    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
     div[class*="container_1upux"] {display: none !important;}
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
-
-    /* ZERA o preenchimento superior para o chat começar do topo */
     .block-container {
         padding-top: 0rem !important;
         padding-bottom: 0rem !important;
@@ -29,26 +25,19 @@ st.markdown("""
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
-
-    /* Ajuste global de fontes */
     html, body, [data-testid="stAppViewContainer"] {
         font-size: 14px;
         background-color: transparent !important;
     }
-
-    /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
     }
-    
     [data-testid="stChatMessageContent"] p {
         font-size: 0.95rem !important;
         line-height: 1.4 !important;
         overflow-wrap: break-word;
     }
-
-    /* Remove padding extra do topo do chat */
     [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0px !important;
         padding-top: 0px !important;
@@ -56,23 +45,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# REMOVIDOS: st.title e st.caption para limpar o topo conforme solicitado
-
-# --- 3. Configuração das Chaves de API ---
-# Tenta obter dos segredos do Streamlit, se não, tenta das variáveis de ambiente
+# --- 3. Configuração das Chaves de API (Mantido igual) ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except (FileNotFoundError, KeyError):
-    # Fallback para variáveis de ambiente
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
     CHROMA_API_KEY = os.environ.get("CHROMA_API_KEY")
     CHROMA_TENANT = os.environ.get("CHROMA_TENANT")
     CHROMA_DATABASE = os.environ.get("CHROMA_DATABASE")
 
-# Verifica se as chaves foram carregadas
 if not OPENAI_API_KEY:
     st.error("ERRO: Chave de API da OpenAI não configurada.")
     st.stop()
@@ -91,7 +75,6 @@ def carregar_colecoes_chroma():
             tenant=CHROMA_TENANT, 
             database=CHROMA_DATABASE
         )
-        # Verifica se as coleções existem antes de tentar obter
         colecoes_existentes = [col.name for col in _client.list_collections()]
         
         colecao_funcionalidades = None
@@ -112,99 +95,92 @@ def carregar_colecoes_chroma():
         return None, None
 
 def rotear_pergunta(pergunta):
-    prompt_roteador = f"""Classifique a pergunta do usuário em uma das seguintes categorias:
-- FUNCIONALIDADE: Se a pergunta for sobre como usar, configurar ou entender um recurso ou processo do sistema.
-- PARAMETRO: Se a pergunta for sobre o significado ou propósito de um campo, opção ou configuração específica.
-- SAUDACAO: Se a pergunta for uma saudação, despedida ou conversa fiada.
-
-Responda APENAS com uma das palavras: FUNCIONALIDADE, PARAMETRO ou SAUDACAO.
-
-Pergunta: '{pergunta}'"""
+    prompt_roteador = f"""Classifique a pergunta do usuário. Responda APENAS: FUNCIONALIDADE, PARAMETRO ou SAUDACAO. Pergunta: '{pergunta}'"""
     try:
         resposta = client_openai.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt_roteador}],
-            temperature=0, max_tokens=10
+            model="gpt-4o", messages=[{"role": "user", "content": prompt_roteador}], temperature=0, max_tokens=10
         )
         intencao = resposta.choices[0].message.content.strip().upper()
         if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
         if "PARAMETRO" in intencao: return "PARAMETRO"
         return "SAUDACAO"
     except Exception as e:
-        st.error(f"Erro ao rotear pergunta com OpenAI: {e}")
-        return "SAUDACAO" # Fallback seguro
+        return "SAUDACAO"
 
-# --- AJUSTE PRINCIPAL NA FUNÇÃO DE BUSCA ---
+# --- FUNÇÃO DE BUSCA REFORMULADA (A SOLUÇÃO) ---
 def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
     if colecao is None:
         st.warning("Tentativa de busca em uma coleção inexistente.")
         return "", None
     try:
-        # print(f"\n--- DEBUG BUSCA: '{pergunta}' ---")
+        # 1. Gera o embedding da pergunta
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
         
-        # --- ETAPA 1: Identificar o feature_name mais provável ---
-        # Busca inicial para ver o que aparece
-        res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
-        meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
+        # --- NOVO: Pré-filtragem baseada em Palavras-Chave Críticas ---
+        pergunta_lower = pergunta.lower()
+        filtro_hard = None # Padrão: sem filtro
+
+        # Mapa de palavras-chave para substrings dos nomes das features no JSON
+        # Se o usuário disser a chave, forçamos o filtro pelo valor.
+        keyword_map = {
+            "pedido": "Pedido",        # Vai casar com "Acompanhamento de Pedidos..."
+            "solicitação": "Solicitação", # Vai casar com "Solicitação de Compra..."
+            "solicitacao": "Solicitação"  # Variação sem acento
+            # Adicione outros pares críticos aqui se necessário
+        }
+
+        conditions = []
+        for keyword, feature_substring in keyword_map.items():
+            # Se a palavra-chave crítica está na pergunta...
+            if keyword in pergunta_lower:
+                # ...adiciona uma condição de filtro para o banco de dados.
+                # Usamos "$contains" para buscar a substring no nome completo da feature.
+                conditions.append({"feature_name": {"$contains": feature_substring}})
         
-        if not meta_iniciais:
-            # print("DEBUG: Nenhum resultado na busca inicial.")
+        # Monta o filtro final para o ChromaDB
+        if conditions:
+            # Usamos um 'set' de tuplas para remover duplicatas (ex: se achar "solicitação" e "solicitacao")
+            unique_conditions = [dict(t) for t in {tuple(d.items()) for d in conditions}]
+            
+            if len(unique_conditions) == 1:
+                filtro_hard = unique_conditions[0]
+            elif len(unique_conditions) > 1:
+                # Se o usuário mencionou ambos (raro, mas possível), permite ambos.
+                filtro_hard = {"$or": unique_conditions}
+            
+            # print(f"DEBUG: Aplicando filtro HARD por palavra-chave: {filtro_hard}")
+        # -------------------------------------------------------------
+
+        # 2. Realiza a busca semântica, APLICANDO O FILTRO SE HOUVER
+        res = colecao.query(
+            query_embeddings=[emb], 
+            n_results=n_results_inicial,
+            where=filtro_hard # <-- Aqui está a mágica. Se tiver filtro, ele usa.
+        )
+        meta = res.get('metadatas', [[]])[0]
+        
+        if not meta:
             return "", None
 
-        # Extrai os feature_names dos resultados iniciais. Se não tiver feature_name, usa 'fonte' como fallback.
-        feature_names_encontrados = []
-        for m in meta_iniciais:
-            fn = m.get('feature_name')
-            if fn:
-                feature_names_encontrados.append(fn)
-            else:
-                # Fallback para 'fonte' se 'feature_name' não existir (para compatibilidade com dados antigos)
-                src = m.get('fonte')
-                if src:
-                     feature_names_encontrados.append(src)
-        
-        filtros = {}
-        if feature_names_encontrados:
-            # Encontra o feature_name (ou fonte) mais comum nos resultados
-            feature_mais_comum = Counter(feature_names_encontrados).most_common(1)[0][0]
-            # print(f"DEBUG: Funcionalidade identificada como filtro: '{feature_mais_comum}'")
-            # Cria o filtro para a próxima busca. Tenta filtrar por 'feature_name', se falhar, tenta por 'fonte'.
-            filtros = {"$or": [{"feature_name": {"$eq": feature_mais_comum}}, {"fonte": {"$eq": feature_mais_comum}}]}
-        else:
-            # print("DEBUG: Não foi possível identificar um feature_name ou fonte para filtrar.")
-            return "", None
-
-        # --- ETAPA 2: Busca Focada e Recuperação de Vídeo ---
-        # Realiza a busca novamente, mas agora APLICANDO O FILTRO
-        # Isso garante que só vamos pegar documentos da funcionalidade correta
-        res_filtrados = colecao.query(query_embeddings=[emb], where=filtros, n_results=20)
-        meta_filtrados = res_filtrados.get('metadatas', [[]])[0]
-
-        if not meta_filtrados:
-             # print("DEBUG: Nenhum resultado encontrado após aplicar o filtro.")
-             return "", None
-
-        # A lógica de seleção de vídeo fica muito mais simples e precisa agora.
-        # Como já filtramos pela funcionalidade correta, podemos pegar o vídeo do primeiro resultado que tiver um.
+        # 3. Seleção de Vídeo Simplificada e Confiável
+        # Como já filtramos os resultados para conter APENAS a funcionalidade correta
+        # (se a palavra-chave foi usada), podemos pegar o primeiro vídeo que aparecer com segurança.
         video = None
-        for m in meta_filtrados:
+        for m in meta:
             v_url = m.get('video_url')
             if v_url:
                 video = v_url
-                # print(f"DEBUG: Vídeo selecionado: {video}")
                 break
         
-        # Monta o contexto a partir dos resultados filtrados
-        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_filtrados if doc.get('texto_original')])
+        # Monta o contexto
+        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta if doc.get('texto_original')])
         
         return contexto, video
     except Exception as e:
         st.error(f"Erro durante busca e síntese de contexto: {e}")
-        # print(f"DEBUG ERRO: {e}")
         return "", None
-# --- FIM DO AJUSTE ---
+# --- FIM DA FUNÇÃO REFORMULADA ---
 
 def gerar_resposta_sintetizada(pergunta, contexto, prompt_sistema):
     prompt_usuario = f"""Use o seguinte contexto para responder à pergunta do usuário.
@@ -229,11 +205,9 @@ RESPOSTA:"""
         )
         return resposta.choices[0].message.content
     except Exception as e:
-        st.error(f"Erro ao gerar resposta sintetizada com OpenAI: {e}")
         return "Desculpe, ocorreu um erro ao gerar a resposta."
 
-# --- 5. Lógica do Chat ---
-# Prompts de Sistema Mais Robustos
+# --- 5. Lógica do Chat (Mantido igual) ---
 P_FUNC_SYSTEM = """Você é o Evo, um assistente virtual especializado no sistema GoEvo.
 Sua função é ajudar usuários com dúvidas sobre funcionalidades e processos do sistema.
 - Suas respostas devem ser baseadas **exclusivamente** no contexto fornecido.
@@ -247,24 +221,19 @@ Sua função é explicar o significado e o propósito de parâmetros, campos e c
 - Baseie-se **exclusivamente** no contexto técnico fornecido.
 - Se o contexto não tiver a definição, diga que não encontrou a informação."""
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, seu assistente virtual para o sistema GoEvo. Estou aqui para ajudar com dúvidas sobre funcionalidades e parâmetros. Como posso ser útil hoje?"
+RES_SAUDACAO = "Olá! Eu sou o Evo, seu assistente virtual para o sistema GoEvo. Como posso ser útil hoje?"
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
-# Inicializa o chat já com a mensagem de saudação
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": RES_SAUDACAO}
-    ]
+    st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Exibe histórico de mensagens
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if msg["role"] == "assistant" and "video" in msg and msg["video"]:
             st.video(msg["video"])
 
-# Processa a entrada do usuário
 if pergunta := st.chat_input("Qual a sua dúvida sobre o GoEvo?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
@@ -279,13 +248,8 @@ if pergunta := st.chat_input("Qual a sua dúvida sobre o GoEvo?"):
             if intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
-                # Seleciona a coleção e o prompt com base na intenção
-                if intencao == "FUNCIONALIDADE":
-                    col = colecao_func
-                    prompt_sis = P_FUNC_SYSTEM
-                else: # PARAMETRO
-                    col = colecao_param
-                    prompt_sis = P_PARAM_SYSTEM
+                col = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
+                prompt_sis = P_FUNC_SYSTEM if intencao == "FUNCIONALIDADE" else P_PARAM_SYSTEM
                 
                 if col:
                     ctx, video_mostrar = buscar_e_sintetizar_contexto(pergunta, col)
