@@ -1,6 +1,7 @@
 import streamlit as st
 import openai
 import chromadb
+import os
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
@@ -57,13 +58,25 @@ st.markdown("""
 # REMOVIDOS: st.title e st.caption para limpar o topo conforme solicitado
 
 # --- 3. Configuração das Chaves de API ---
+# Tenta obter dos segredos do Streamlit, se não, tenta das variáveis de ambiente
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except (FileNotFoundError, KeyError):
-    st.error("ERRO: Configure as chaves de API no arquivo .streamlit/secrets.toml")
+    # Fallback para variáveis de ambiente
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+    CHROMA_API_KEY = os.environ.get("CHROMA_API_KEY")
+    CHROMA_TENANT = os.environ.get("CHROMA_TENANT")
+    CHROMA_DATABASE = os.environ.get("CHROMA_DATABASE")
+
+# Verifica se as chaves foram carregadas
+if not OPENAI_API_KEY:
+    st.error("ERRO: Chave de API da OpenAI não configurada.")
+    st.stop()
+if not CHROMA_API_KEY or not CHROMA_TENANT or not CHROMA_DATABASE:
+    st.error("ERRO: Chaves de API do ChromaDB não configuradas.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -77,53 +90,120 @@ def carregar_colecoes_chroma():
             tenant=CHROMA_TENANT, 
             database=CHROMA_DATABASE
         )
-        colecao_funcionalidades = _client.get_collection("colecao_funcionalidades")
-        colecao_parametros = _client.get_collection("colecao_parametros")
+        # Verifica se as coleções existem antes de tentar obter
+        colecoes_existentes = [col.name for col in _client.list_collections()]
+        
+        colecao_funcionalidades = None
+        if "colecao_funcionalidades" in colecoes_existentes:
+            colecao_funcionalidades = _client.get_collection("colecao_funcionalidades")
+        else:
+            st.warning("Aviso: Coleção 'colecao_funcionalidades' não encontrada no banco de dados.")
+
+        colecao_parametros = None
+        if "colecao_parametros" in colecoes_existentes:
+            colecao_parametros = _client.get_collection("colecao_parametros")
+        else:
+            st.warning("Aviso: Coleção 'colecao_parametros' não encontrada no banco de dados.")
+            
         return colecao_funcionalidades, colecao_parametros
     except Exception as e:
-        st.error(f"Erro ao conectar com a base: {e}")
+        st.error(f"Erro ao conectar com a base de dados Chroma: {e}")
         return None, None
 
 def rotear_pergunta(pergunta):
-    prompt_roteador = f"Classifique a pergunta: SAUDACAO, FUNCIONALIDADE ou PARAMETRO. Responda apenas a palavra. Pergunta: '{pergunta}'"
-    resposta = client_openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt_roteador}],
-        temperature=0, max_tokens=10
-    )
-    intencao = resposta.choices[0].message.content.strip().upper()
-    if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
-    if "PARAMETRO" in intencao: return "PARAMETRO"
-    return "SAUDACAO"
+    prompt_roteador = f"""Classifique a pergunta do usuário em uma das seguintes categorias:
+- FUNCIONALIDADE: Se a pergunta for sobre como usar, configurar ou entender um recurso ou processo do sistema.
+- PARAMETRO: Se a pergunta for sobre o significado ou propósito de um campo, opção ou configuração específica.
+- SAUDACAO: Se a pergunta for uma saudação, despedida ou conversa fiada.
+
+Responda APENAS com uma das palavras: FUNCIONALIDADE, PARAMETRO ou SAUDACAO.
+
+Pergunta: '{pergunta}'"""
+    try:
+        resposta = client_openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt_roteador}],
+            temperature=0, max_tokens=10
+        )
+        intencao = resposta.choices[0].message.content.strip().upper()
+        if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
+        if "PARAMETRO" in intencao: return "PARAMETRO"
+        return "SAUDACAO"
+    except Exception as e:
+        st.error(f"Erro ao rotear pergunta com OpenAI: {e}")
+        return "SAUDACAO" # Fallback seguro
 
 def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
-    if colecao is None: return "", None
-    emb = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small").data[0].embedding
-    res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
-    meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
-    
-    if not meta_iniciais: return "", None
+    if colecao is None:
+        st.warning("Tentativa de busca em uma coleção inexistente.")
+        return "", None
+    try:
+        emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
+        emb = emb_response.data[0].embedding
+        
+        res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
+        meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
+        
+        if not meta_iniciais: return "", None
 
-    fontes = list(set([doc['fonte'] for doc in meta_iniciais]))
-    res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
-    meta_completos = res_filtrados.get('metadatas', [[]])[0]
-    
-    contexto = "\n\n---\n\n".join([doc['texto_original'] for doc in meta_completos])
-    video = meta_iniciais[0].get('video_url')
-    return contexto, video
+        # Garante que a chave 'fonte' existe para evitar KeyErrors
+        fontes = list(set([doc.get('fonte') for doc in meta_iniciais if doc.get('fonte')]))
+        
+        res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
+        meta_completos = res_filtrados.get('metadatas', [[]])[0]
+        
+        # Garante que a chave 'texto_original' existe
+        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_completos if doc.get('texto_original')])
+        
+        # Pega o vídeo do primeiro resultado, se existir
+        video = meta_iniciais[0].get('video_url') if meta_iniciais else None
+        return contexto, video
+    except Exception as e:
+        st.error(f"Erro durante busca e síntese de contexto: {e}")
+        return "", None
 
-def gerar_resposta_sintetizada(pergunta, contexto, prompt):
-    resposta = client_openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "system", "content": prompt}, {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}],
-        temperature=0.5
-    )
-    return resposta.choices[0].message.content
+def gerar_resposta_sintetizada(pergunta, contexto, prompt_sistema):
+    prompt_usuario = f"""Use o seguinte contexto para responder à pergunta do usuário.
+Se a resposta não puder ser encontrada no contexto, diga que você não tem essa informação.
+Seja claro, conciso e direto.
+
+CONTEXTO:
+{contexto}
+
+PERGUNTA:
+{pergunta}
+
+RESPOSTA:"""
+    try:
+        resposta = client_openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt_sistema},
+                {"role": "user", "content": prompt_usuario}
+            ],
+            temperature=0.3 # Temperatura ligeiramente mais baixa para respostas mais focadas
+        )
+        return resposta.choices[0].message.content
+    except Exception as e:
+        st.error(f"Erro ao gerar resposta sintetizada com OpenAI: {e}")
+        return "Desculpe, ocorreu um erro ao gerar a resposta."
 
 # --- 5. Lógica do Chat ---
-p_func = "Você é o Evo. Responda de forma direta e numerada usando o contexto."
-p_param = "Você é o especialista técnico Evo. Explique o parâmetro de forma curta."
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar?"
+# Prompts de Sistema Mais Robustos
+P_FUNC_SYSTEM = """Você é o Evo, um assistente virtual especializado no sistema GoEvo.
+Sua função é ajudar usuários com dúvidas sobre funcionalidades e processos do sistema.
+- Suas respostas devem ser baseadas **exclusivamente** no contexto fornecido.
+- Seja direto, claro e objetivo.
+- Use listas numeradas ou bullet points para instruções passo a passo.
+- Se o contexto não contiver a informação, admita que não sabe. Não invente."""
+
+P_PARAM_SYSTEM = """Você é o Evo, um especialista técnico do sistema GoEvo.
+Sua função é explicar o significado e o propósito de parâmetros, campos e configurações específicas do sistema.
+- Suas explicações devem ser curtas, precisas e fáceis de entender.
+- Baseie-se **exclusivamente** no contexto técnico fornecido.
+- Se o contexto não tiver a definição, diga que não encontrou a informação."""
+
+RES_SAUDACAO = "Olá! Eu sou o Evo, seu assistente virtual para o sistema GoEvo. Estou aqui para ajudar com dúvidas sobre funcionalidades e parâmetros. Como posso ser útil hoje?"
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
@@ -141,23 +221,36 @@ for msg in st.session_state.messages:
             st.video(msg["video"])
 
 # Processa a entrada do usuário
-if pergunta := st.chat_input("Qual a sua dúvida?"):
+if pergunta := st.chat_input("Qual a sua dúvida sobre o GoEvo?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
         st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Analisando..."):
+        with st.spinner("Processando sua pergunta..."):
             intencao = rotear_pergunta(pergunta)
             video_mostrar = None
+            res_final = ""
             
             if intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
-                col = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
-                p = p_func if intencao == "FUNCIONALIDADE" else p_param
-                ctx, video_mostrar = buscar_e_sintetizar_contexto(pergunta, col)
-                res_final = gerar_resposta_sintetizada(pergunta, ctx, p) if ctx else "Não encontrei essa informação."
+                # Seleciona a coleção e o prompt com base na intenção
+                if intencao == "FUNCIONALIDADE":
+                    col = colecao_func
+                    prompt_sis = P_FUNC_SYSTEM
+                else: # PARAMETRO
+                    col = colecao_param
+                    prompt_sis = P_PARAM_SYSTEM
+                
+                if col:
+                    ctx, video_mostrar = buscar_e_sintetizar_contexto(pergunta, col)
+                    if ctx:
+                        res_final = gerar_resposta_sintetizada(pergunta, ctx, prompt_sis)
+                    else:
+                        res_final = "Desculpe, não encontrei informações relevantes sobre isso na minha base de conhecimento."
+                else:
+                     res_final = "Desculpe, a base de conhecimento necessária não está disponível no momento."
 
             st.markdown(res_final)
             if video_mostrar:
