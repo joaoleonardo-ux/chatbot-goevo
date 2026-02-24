@@ -2,6 +2,7 @@ import streamlit as st
 import openai
 import chromadb
 import os
+from collections import Counter # <-- IMPORTAÇÃO NOVA NECESSÁRIA PARA O AJUSTE
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
@@ -141,22 +142,36 @@ def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
         
+        # Busca os N resultados mais similares (ex: top 10)
         res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
         meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
         
         if not meta_iniciais: return "", None
 
-        # Garante que a chave 'fonte' existe para evitar KeyErrors
+        # --- INÍCIO DO AJUSTE: Lógica de Seleção do Vídeo mais Frequente ---
+        video = None
+        # Extrai URLs de vídeo válidas (não nulas e não vazias) dos resultados iniciais
+        videos_encontrados = [m.get('video_url') for m in meta_iniciais if m.get('video_url')]
+
+        if videos_encontrados:
+            # Usa Counter para encontrar o vídeo mais comum na lista
+            # most_common(1) retorna uma lista com uma tupla: [(video_url, contagem)]
+            video_mais_comum = Counter(videos_encontrados).most_common(1)
+            if video_mais_comum:
+                # Pega a URL do primeiro elemento da tupla
+                video = video_mais_comum[0][0]
+        # --- FIM DO AJUSTE ---
+
+        # Garante que a chave 'fonte' existe para evitar KeyErrors na filtragem
         fontes = list(set([doc.get('fonte') for doc in meta_iniciais if doc.get('fonte')]))
         
+        # Expande a busca para pegar todo o contexto das fontes identificadas
         res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
         meta_completos = res_filtrados.get('metadatas', [[]])[0]
         
-        # Garante que a chave 'texto_original' existe
+        # Monta o contexto final
         contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_completos if doc.get('texto_original')])
         
-        # Pega o vídeo do primeiro resultado, se existir
-        video = meta_iniciais[0].get('video_url') if meta_iniciais else None
         return contexto, video
     except Exception as e:
         st.error(f"Erro durante busca e síntese de contexto: {e}")
@@ -181,7 +196,7 @@ RESPOSTA:"""
                 {"role": "system", "content": prompt_sistema},
                 {"role": "user", "content": prompt_usuario}
             ],
-            temperature=0.3 # Temperatura ligeiramente mais baixa para respostas mais focadas
+            temperature=0.3
         )
         return resposta.choices[0].message.content
     except Exception as e:
