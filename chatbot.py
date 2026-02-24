@@ -2,24 +2,24 @@ import streamlit as st
 import openai
 import chromadb
 
-# --- Configuração da Página (Deve ser o primeiro comando Streamlit) ---
+# --- 1. Configuração da Página (Deve ser o primeiro comando) ---
 st.set_page_config(page_title="GoEvo Assist", page_icon="🤖", layout="wide")
 
-# --- CÓDIGO PARA AJUSTE VISUAL (CSS) ---
+# --- 2. Injeção de CSS para Limpeza Total da Interface ---
 st.markdown("""
 <style>
-    /* 1. Ajustes Gerais de Fonte e Redução de Espaços */
-    html, body, [data-testid="stAppViewContainer"] {
-        font-size: 14px;
-    }
+    /* Esconde o Header, Footer e Menus nativos */
+    header {visibility: hidden; height: 0px !important;}
+    footer {display: none !important;}
+    [data-testid="stHeader"] {display: none !important;}
+    [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove a barra de menu superior e o preenchimento extra */
-    header {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    [data-testid="stHeader"] {display: none;}
-    
-    /* Reduz drasticamente o padding do container principal */
+    /* Remove a barra específica identificada (div._container_1upux_1) */
+    div[class*="container_1upux"] {display: none !important;}
+    div[class*="viewerBadge"] {display: none !important;}
+    button[title="View fullscreen"] {display: none !important;}
+
+    /* Ajusta o container principal para não ter margens sobrando */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
@@ -28,76 +28,73 @@ st.markdown("""
         max-width: 100% !important;
     }
 
-    /* 2. Ajuste do Título e Legenda */
-    h1 {
-        font-size: 1.2rem !important;
-        margin-bottom: 0px !important;
-        padding-bottom: 0px !important;
-    }
-    .stCaption {
-        font-size: 0.8rem !important;
-        margin-bottom: 10px !important;
+    /* Ajuste global de fontes para visualização em janelas pequenas */
+    html, body, [data-testid="stAppViewContainer"] {
+        font-size: 14px;
     }
 
-    /* 3. Estilização das Mensagens de Chat (Compactas) */
+    /* Estilização compacta dos balões de chat */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
     }
+    
     [data-testid="stChatMessageContent"] p {
-        font-size: 0.9rem !important;
+        font-size: 0.95rem !important;
         line-height: 1.4 !important;
         overflow-wrap: break-word;
     }
 
-    /* Ajuste da área de input (deixa mais discreta) */
-    [data-testid="stChatInput"] {
-        padding-bottom: 20px !important;
+    /* Ajuste da altura do título para caber no popup */
+    h1 {
+        font-size: 1.3rem !important;
+        margin-bottom: 0.2rem !important;
+        padding-top: 0px !important;
     }
-
-    /* 4. Esconder o rodapé "Built with Streamlit" e o botão de Fullscreen */
-    [data-testid="stFooter"] {display: none !important;}
-    .viewerBadge_container__1QS1n {display: none !important;}
-    button[title="View fullscreen"] {display: none !important;}
+    
+    .stCaption {
+        font-size: 0.85rem !important;
+        margin-bottom: 1rem !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🤖 Leo - Assistente Virtual")
 st.caption("Suporte inteligente GoEvo")
 
-# --- Configuração das Chaves de API ---
+# --- 3. Configuração das Chaves de API ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except (FileNotFoundError, KeyError):
-    st.error("ERRO: Configure seu arquivo .streamlit/secrets.toml")
+    st.error("ERRO: Configure as chaves de API no arquivo .streamlit/secrets.toml")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- Funções do Agente de IA ---
+# --- 4. Funções do Agente de IA ---
 @st.cache_resource
 def carregar_colecoes_chroma():
     try:
         _client = chromadb.CloudClient(
-            api_key=st.secrets["CHROMA_API_KEY"], 
-            tenant=st.secrets["CHROMA_TENANT"], 
-            database=st.secrets["CHROMA_DATABASE"]
+            api_key=CHROMA_API_KEY, 
+            tenant=CHROMA_TENANT, 
+            database=CHROMA_DATABASE
         )
         colecao_funcionalidades = _client.get_collection("colecao_funcionalidades")
         colecao_parametros = _client.get_collection("colecao_parametros")
         return colecao_funcionalidades, colecao_parametros
     except Exception as e:
-        st.error(f"Erro na base: {e}")
+        st.error(f"Erro ao conectar com a base de conhecimento: {e}")
         return None, None
 
 def rotear_pergunta(pergunta):
     prompt_roteador = f"""
-    Classifique a pergunta: SAUDACAO, FUNCIONALIDADE ou PARAMETRO.
+    Classifique a pergunta do usuário em: SAUDACAO, FUNCIONALIDADE ou PARAMETRO.
+    Responda APENAS com a palavra correspondente.
     Pergunta: "{pergunta}"
-    Responda apenas a palavra.
     """
     resposta = client_openai.chat.completions.create(
         model="gpt-4o",
@@ -142,43 +139,45 @@ def gerar_resposta_sintetizada(pergunta, contexto, prompt_especialista):
     )
     return resposta.choices[0].message.content
 
-# --- Prompts ---
-prompt_assistente_funcionalidades = "Você é o GoEvo Assist. Responda de forma direta e numerada com base no contexto. Não use saudações longas."
-prompt_especialista_parametros = "Você é o especialista técnico GoEvo. Explique o parâmetro de forma curta e objetiva."
+# --- 5. Prompts e Lógica do Chat ---
+prompt_funcionalidades = "Você é o GoEvo Assist. Responda de forma direta e numerada usando o contexto. Não cite suporte externo."
+prompt_parametros = "Você é o especialista técnico GoEvo. Explique o parâmetro de forma curta e objetiva."
+RESPOSTA_SAUDACAO = "Olá! Eu sou o Leo, Assistente Virtual do GoEvo. Como posso ajudar?"
 
-# --- Interface do Chat ---
-RESPOSTA_SAUDACAO = "Olá! Sou o Leo. Como posso ajudar com o sistema hoje?"
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Exibe histórico
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if message["role"] == "assistant" and "video" in message and message["video"]:
             st.video(message["video"])
 
+# Entrada do Usuário
 if pergunta_usuario := st.chat_input("Qual a sua dúvida?"):
     st.session_state.messages.append({"role": "user", "content": pergunta_usuario})
     with st.chat_message("user"):
         st.markdown(pergunta_usuario)
 
     with st.chat_message("assistant"):
-        with st.spinner("Buscando..."):
+        with st.spinner("Analisando..."):
             intencao = rotear_pergunta(pergunta_usuario)
+            video_para_mostrar = None
+            
             if intencao == "SAUDACAO":
                 resposta_final = RESPOSTA_SAUDACAO
-                video_para_mostrar = None
             else:
                 colecao = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
-                prompt = prompt_assistente_funcionalidades if intencao == "FUNCIONALIDADE" else prompt_especialista_parametros
+                prompt = prompt_funcionalidades if intencao == "FUNCIONALIDADE" else prompt_parametros
                 contexto, video_para_mostrar = buscar_e_sintetizar_contexto(pergunta_usuario, colecao)
                 
                 if contexto:
                     resposta_final = gerar_resposta_sintetizada(pergunta_usuario, contexto, prompt)
                 else:
-                    resposta_final = "Não encontrei essa informação. Pode reformular?"
+                    resposta_final = "Não encontrei informações sobre isso na base. Pode reformular sua pergunta?"
 
             st.markdown(resposta_final)
             if video_para_mostrar:
