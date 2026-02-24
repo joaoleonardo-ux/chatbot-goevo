@@ -2,39 +2,39 @@ import streamlit as st
 import openai
 import chromadb
 
-# --- 1. Configuração da Página (Deve ser o primeiro comando) ---
-st.set_page_config(page_title="GoEvo Assist", page_icon="🤖", layout="wide")
+# --- 1. Configuração da Página ---
+st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
 
-# --- 2. Injeção de CSS para Limpeza Total da Interface ---
+# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
 st.markdown("""
 <style>
-    /* Esconde o Header, Footer e Menus nativos do Streamlit */
+    /* Esconde Header, Footer e Menus nativos */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove especificamente a barra de rodapé e o badge "Built with Streamlit" */
+    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
     div[class*="container_1upux"] {display: none !important;}
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
 
-    /* Ajusta o container principal para eliminar espaços em branco */
+    /* ZERA o preenchimento superior para o chat começar do topo */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0rem !important;
         padding-bottom: 0rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* Ajuste de fontes para leitura em janelas pequenas */
+    /* Ajuste global de fontes */
     html, body, [data-testid="stAppViewContainer"] {
         font-size: 14px;
         background-color: transparent !important;
     }
 
-    /* Balões de chat mais compactos */
+    /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
@@ -46,16 +46,15 @@ st.markdown("""
         overflow-wrap: break-word;
     }
 
-    /* Estilização do Título */
-    h1 {
-        font-size: 1.3rem !important;
-        margin-bottom: 0.2rem !important;
+    /* Remove padding extra do topo do chat */
+    [data-testid="stVerticalBlock"] > div:first-child {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.title(" 🤖 Evo ")
-st.caption("Suporte inteligente GoEvo")
+# REMOVIDOS: st.title e st.caption para limpar o topo conforme solicitado
 
 # --- 3. Configuração das Chaves de API ---
 try:
@@ -128,7 +127,7 @@ RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso aju
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
-# --- MODIFICAÇÃO AQUI: Inicializa o chat já com a mensagem de saudação ---
+# Inicializa o chat já com a mensagem de saudação
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role": "assistant", "content": RES_SAUDACAO}
@@ -143,12 +142,10 @@ for msg in st.session_state.messages:
 
 # Processa a entrada do usuário
 if pergunta := st.chat_input("Qual a sua dúvida?"):
-    # Adiciona pergunta do usuário ao histórico e exibe
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
         st.markdown(pergunta)
 
-    # Gera resposta do assistente
     with st.chat_message("assistant"):
         with st.spinner("Analisando..."):
             intencao = rotear_pergunta(pergunta)
@@ -166,5 +163,4 @@ if pergunta := st.chat_input("Qual a sua dúvida?"):
             if video_mostrar:
                 st.video(video_mostrar)
     
-    # Salva resposta no histórico
     st.session_state.messages.append({"role": "assistant", "content": res_final, "video": video_mostrar})
