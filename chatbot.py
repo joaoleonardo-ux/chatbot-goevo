@@ -122,28 +122,40 @@ def gerar_resposta_sintetizada(pergunta, contexto, prompt):
     return resposta.choices[0].message.content
 
 # --- 5. Lógica do Chat ---
-p_func = "Você é o GoEvo Assist. Responda de forma direta e numerada usando o contexto."
-p_param = "Você é o especialista técnico GoEvo. Explique o parâmetro de forma curta."
-RES_SAUDACAO = "Olá! Eu sou o Evo, Assistente Virtual do GoEvo. Como posso ajudar?"
+p_func = "Você é o Evo. Responda de forma direta e numerada usando o contexto."
+p_param = "Você é o especialista técnico Evo. Explique o parâmetro de forma curta."
+RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar?"
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
-if "messages" not in st.session_state: st.session_state.messages = []
+# --- MODIFICAÇÃO AQUI: Inicializa o chat já com a mensagem de saudação ---
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": RES_SAUDACAO}
+    ]
 
+# Exibe histórico de mensagens
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if msg["role"] == "assistant" and "video" in msg and msg["video"]: st.video(msg["video"])
+        if msg["role"] == "assistant" and "video" in msg and msg["video"]:
+            st.video(msg["video"])
 
+# Processa a entrada do usuário
 if pergunta := st.chat_input("Qual a sua dúvida?"):
+    # Adiciona pergunta do usuário ao histórico e exibe
     st.session_state.messages.append({"role": "user", "content": pergunta})
-    with st.chat_message("user"): st.markdown(pergunta)
+    with st.chat_message("user"):
+        st.markdown(pergunta)
 
+    # Gera resposta do assistente
     with st.chat_message("assistant"):
         with st.spinner("Analisando..."):
             intencao = rotear_pergunta(pergunta)
             video_mostrar = None
-            if intencao == "SAUDACAO": res_final = RES_SAUDACAO
+            
+            if intencao == "SAUDACAO":
+                res_final = RES_SAUDACAO
             else:
                 col = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
                 p = p_func if intencao == "FUNCIONALIDADE" else p_param
@@ -151,7 +163,8 @@ if pergunta := st.chat_input("Qual a sua dúvida?"):
                 res_final = gerar_resposta_sintetizada(pergunta, ctx, p) if ctx else "Não encontrei essa informação."
 
             st.markdown(res_final)
-            if video_mostrar: st.video(video_mostrar)
+            if video_mostrar:
+                st.video(video_mostrar)
     
+    # Salva resposta no histórico
     st.session_state.messages.append({"role": "assistant", "content": res_final, "video": video_mostrar})
-
