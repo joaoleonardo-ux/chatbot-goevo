@@ -54,7 +54,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🤖 Leo - Assistente Virtual")
+st.title(" 🤖 Evo ")
 st.caption("Suporte inteligente GoEvo")
 
 # --- 3. Configuração das Chaves de API ---
@@ -124,7 +124,7 @@ def gerar_resposta_sintetizada(pergunta, contexto, prompt):
 # --- 5. Lógica do Chat ---
 p_func = "Você é o GoEvo Assist. Responda de forma direta e numerada usando o contexto."
 p_param = "Você é o especialista técnico GoEvo. Explique o parâmetro de forma curta."
-RES_SAUDACAO = "Olá! Eu sou o Leo, Assistente Virtual do GoEvo. Como posso ajudar?"
+RES_SAUDACAO = "Olá! Eu sou o Evo, Assistente Virtual do GoEvo. Como posso ajudar?"
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
@@ -154,3 +154,4 @@ if pergunta := st.chat_input("Qual a sua dúvida?"):
             if video_mostrar: st.video(video_mostrar)
     
     st.session_state.messages.append({"role": "assistant", "content": res_final, "video": video_mostrar})
+
