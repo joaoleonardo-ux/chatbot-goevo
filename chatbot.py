@@ -2,8 +2,8 @@ import streamlit as st
 import openai
 import chromadb
 import os
-# A importação de Counter não é mais necessária nesta abordagem, mas pode deixar
-from collections import Counter 
+# A importação de Counter não é mais necessária nesta abordagem, pode remover se quiser.
+# from collections import Counter
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
@@ -107,7 +107,7 @@ def rotear_pergunta(pergunta):
     except Exception as e:
         return "SAUDACAO"
 
-# --- FUNÇÃO DE BUSCA REFORMULADA (A SOLUÇÃO) ---
+# --- FUNÇÃO DE BUSCA CORRIGIDA ---
 def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
     if colecao is None:
         st.warning("Tentativa de busca em uma coleção inexistente.")
@@ -117,46 +117,38 @@ def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
         
-        # --- NOVO: Pré-filtragem baseada em Palavras-Chave Críticas ---
+        # --- Pré-filtragem baseada em Palavras-Chave Críticas ---
         pergunta_lower = pergunta.lower()
         filtro_hard = None # Padrão: sem filtro
 
         # Mapa de palavras-chave para substrings dos nomes das features no JSON
-        # Se o usuário disser a chave, forçamos o filtro pelo valor.
         keyword_map = {
-            "pedido": "Pedido",        # Vai casar com "Acompanhamento de Pedidos..."
-            "solicitação": "Solicitação", # Vai casar com "Solicitação de Compra..."
-            "solicitacao": "Solicitação"  # Variação sem acento
-            # Adicione outros pares críticos aqui se necessário
+            "pedido": "Pedido",
+            "solicitação": "Solicitação",
+            "solicitacao": "Solicitação"
         }
 
         conditions = []
         for keyword, feature_substring in keyword_map.items():
-            # Se a palavra-chave crítica está na pergunta...
             if keyword in pergunta_lower:
-                # ...adiciona uma condição de filtro para o banco de dados.
-                # Usamos "$contains" para buscar a substring no nome completo da feature.
                 conditions.append({"feature_name": {"$contains": feature_substring}})
         
-        # Monta o filtro final para o ChromaDB
+        # --- CORREÇÃO AQUI: Simplificação da montagem do filtro ---
         if conditions:
-            # Usamos um 'set' de tuplas para remover duplicatas (ex: se achar "solicitação" e "solicitacao")
-            unique_conditions = [dict(t) for t in {tuple(d.items()) for d in conditions}]
-            
-            if len(unique_conditions) == 1:
-                filtro_hard = unique_conditions[0]
-            elif len(unique_conditions) > 1:
-                # Se o usuário mencionou ambos (raro, mas possível), permite ambos.
-                filtro_hard = {"$or": unique_conditions}
-            
-            # print(f"DEBUG: Aplicando filtro HARD por palavra-chave: {filtro_hard}")
-        # -------------------------------------------------------------
+            if len(conditions) == 1:
+                # Se houver apenas uma condição, usa ela diretamente
+                filtro_hard = conditions[0]
+            elif len(conditions) > 1:
+                # Se houver múltiplas palavras-chave (ex: "pedidos e solicitações"),
+                # usa o operador $or do ChromaDB para permitir qualquer uma delas.
+                filtro_hard = {"$or": conditions}
+        # ----------------------------------------------------------
 
         # 2. Realiza a busca semântica, APLICANDO O FILTRO SE HOUVER
         res = colecao.query(
             query_embeddings=[emb], 
             n_results=n_results_inicial,
-            where=filtro_hard # <-- Aqui está a mágica. Se tiver filtro, ele usa.
+            where=filtro_hard # Usa o filtro se ele foi definido
         )
         meta = res.get('metadatas', [[]])[0]
         
@@ -164,8 +156,7 @@ def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
             return "", None
 
         # 3. Seleção de Vídeo Simplificada e Confiável
-        # Como já filtramos os resultados para conter APENAS a funcionalidade correta
-        # (se a palavra-chave foi usada), podemos pegar o primeiro vídeo que aparecer com segurança.
+        # Com o filtro hard aplicado, podemos confiar no primeiro vídeo que aparecer.
         video = None
         for m in meta:
             v_url = m.get('video_url')
@@ -178,9 +169,10 @@ def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
         
         return contexto, video
     except Exception as e:
+        # Se ainda houver erro, ele será mostrado aqui, mas o 'unhashable dict' deve estar resolvido.
         st.error(f"Erro durante busca e síntese de contexto: {e}")
         return "", None
-# --- FIM DA FUNÇÃO REFORMULADA ---
+# --- FIM DA FUNÇÃO CORRIGIDA ---
 
 def gerar_resposta_sintetizada(pergunta, contexto, prompt_sistema):
     prompt_usuario = f"""Use o seguinte contexto para responder à pergunta do usuário.
@@ -221,7 +213,7 @@ Sua função é explicar o significado e o propósito de parâmetros, campos e c
 - Baseie-se **exclusivamente** no contexto técnico fornecido.
 - Se o contexto não tiver a definição, diga que não encontrou a informação."""
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, seu assistente virtual para o sistema GoEvo. Como posso ser útil hoje?"
+RES_SAUDACAO = "Olá! Eu sou o Evo, seu assistente virtual para o sistema GoEvo. Estou aqui para ajudar com dúvidas sobre funcionalidades e parâmetros. Como posso ser útil hoje?"
 
 colecao_func, colecao_param = carregar_colecoes_chroma()
 
