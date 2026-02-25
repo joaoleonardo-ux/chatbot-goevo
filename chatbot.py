@@ -54,8 +54,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# REMOVIDOS: st.title e st.caption para limpar o topo conforme solicitado
-
 # --- 3. Configuração de APIs ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -78,20 +76,20 @@ def carregar_colecao():
             tenant=CHROMA_TENANT, 
             database=CHROMA_DATABASE
         )
-        # Foco exclusivo na coleção de funcionalidades
         return _client.get_collection("colecao_funcionalidades")
     except Exception as e:
         st.error(f"Erro ao conectar com a base ChromaDB: {e}")
         return None
 
 def rotear_pergunta(pergunta):
-    """Classifica se o usuário quer uma saudação ou suporte funcional."""
+    """Classifica com temperatura 0 para evitar variações de rota."""
     try:
         prompt_roteador = f"Classifique: SAUDACAO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt_roteador}],
-            temperature=0, max_tokens=10
+            temperature=0, # Garantir determinismo
+            max_tokens=10
         )
         intencao = resposta.choices[0].message.content.strip().upper()
         return "FUNCIONALIDADE" if "FUNCIONALIDADE" in intencao else "SAUDACAO"
@@ -99,24 +97,19 @@ def rotear_pergunta(pergunta):
         return "SAUDACAO"
 
 def buscar_contexto_seguro(pergunta, colecao):
-    """Busca contexto garantindo que o vídeo pertença à mesma fonte do texto."""
-    if colecao is None: return "", None
+    if colecao is None: return "", None, ""
     try:
-        # 1. Gera Embedding da pergunta
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
         
-        # 2. Busca o fragmento mais próximo para definir o TÓPICO (Fonte)
         res_topo = colecao.query(query_embeddings=[emb], n_results=1)
         if not res_topo['metadatas'][0]:
-            return "", None
+            return "", None, ""
 
         meta_principal = res_topo['metadatas'][0][0]
         fonte_alvo = meta_principal.get('fonte')
         video_url = meta_principal.get('video_url')
 
-        # 3. Busca todos os fragmentos QUE PERTENCEM a essa fonte específica
-        # Isso evita misturar passos de uma função com vídeo de outra
         res_completos = colecao.query(
             query_embeddings=[emb], 
             where={"fonte": fonte_alvo}, 
@@ -126,20 +119,23 @@ def buscar_contexto_seguro(pergunta, colecao):
         fragmentos = res_completos.get('metadatas', [[]])[0]
         contexto = "\n\n".join([f.get('texto_original', '') for f in fragmentos if f.get('texto_original')])
         
-        return contexto, video_url
+        return contexto, video_url, fonte_alvo
     except Exception as e:
         st.error(f"Erro na recuperação: {e}")
-        return "", None
+        return "", None, ""
 
-def gerar_resposta(pergunta, contexto):
-    """Sintetiza a resposta final em formato de guia."""
-    prompt_sistema = """Você é o Evo, o assistente inteligente da GoEvo.
-    Sua missão é explicar o funcionamento do sistema usando o contexto fornecido.
-    REGRAS:
-    1. Use listas numeradas para o passo a passo.
-    2. Seja cordial, direto e objetivo.
-    3. Se o contexto for insuficiente, peça para o usuário ser mais específico sobre qual tela ou menu ele se refere.
-    4. Não invente passos que não estão no texto."""
+def gerar_resposta(pergunta, contexto, nome_feature):
+    """Sintetiza a resposta com temperatura 0 e regras rígidas de formatação."""
+    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
+    Sua missão é fornecer instruções idênticas e padronizadas.
+    
+    REGRAS DE OURO:
+    1. Comece sempre com: "Para realizar {nome_feature}, siga estes passos:"
+    2. Use estritamente listas numeradas para as ações.
+    3. Seja direto. Não peça informações adicionais se o contexto já permitir responder.
+    4. Não faça sugestões ou comentários fora do contexto fornecido.
+    5. Mantenha tom profissional e técnico.
+    6. Se o contexto não permitir responder, diga: "Não encontrei o procedimento exato na base de conhecimento." """
 
     try:
         resposta = client_openai.chat.completions.create(
@@ -148,7 +144,7 @@ def gerar_resposta(pergunta, contexto):
                 {"role": "system", "content": prompt_sistema}, 
                 {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}
             ],
-            temperature=0.3
+            temperature=0 # TRAVADO para evitar respostas diferentes para a mesma pergunta
         )
         return resposta.choices[0].message.content
     except:
@@ -159,36 +155,32 @@ def gerar_resposta(pergunta, contexto):
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
 colecao_func = carregar_colecao()
 
-# Inicializa histórico
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza histórico
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Entrada do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
         st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Escrevendo..."):
+        with st.spinner("Analisando base de conhecimento..."):
             intencao = rotear_pergunta(pergunta)
             
             if intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
-                ctx, video = buscar_contexto_seguro(pergunta, colecao_func)
+                ctx, video, nome_f = buscar_contexto_seguro(pergunta, colecao_func)
                 if ctx:
-                    res_final = gerar_resposta(pergunta, ctx)
-                    # Adiciona o link do vídeo se existir na fonte encontrada
+                    res_final = gerar_resposta(pergunta, ctx, nome_f)
                     if video:
                         res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo detalhado: [Clique aqui para abrir o vídeo]({video})"
                 else:
-                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade. Pode detalhar melhor?"
+                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
