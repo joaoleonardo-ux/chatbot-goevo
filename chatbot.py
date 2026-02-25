@@ -82,17 +82,21 @@ def carregar_colecao():
         return None
 
 def rotear_pergunta(pergunta):
-    """Classifica com temperatura 0 para evitar variações de rota."""
+    """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        prompt_roteador = f"Classifique: SAUDACAO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
+        # Ajustado para incluir a categoria AGRADECIMENTO
+        prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
             messages=[{"role": "user", "content": prompt_roteador}],
-            temperature=0, # Garantir determinismo
-            max_tokens=10
+            temperature=0, 
+            max_tokens=15
         )
         intencao = resposta.choices[0].message.content.strip().upper()
-        return "FUNCIONALIDADE" if "FUNCIONALIDADE" in intencao else "SAUDACAO"
+        
+        if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
+        if "AGRADECIMENTO" in intencao: return "AGRADECIMENTO"
+        return "SAUDACAO"
     except:
         return "SAUDACAO"
 
@@ -144,7 +148,7 @@ def gerar_resposta(pergunta, contexto, nome_feature):
                 {"role": "system", "content": prompt_sistema}, 
                 {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}
             ],
-            temperature=0 # TRAVADO para evitar respostas diferentes para a mesma pergunta
+            temperature=0
         )
         return resposta.choices[0].message.content
     except:
@@ -153,15 +157,19 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 # --- 5. Execução do Chat ---
 
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
+RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
+# Inicializa histórico
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
+# Renderiza histórico
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# Entrada do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
@@ -171,7 +179,10 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
             
-            if intencao == "SAUDACAO":
+            # Lógica de resposta baseada na intenção
+            if intencao == "AGRADECIMENTO":
+                res_final = RES_AGRADECIMENTO
+            elif intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
                 ctx, video, nome_f = buscar_contexto_seguro(pergunta, colecao_func)
@@ -184,4 +195,3 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
