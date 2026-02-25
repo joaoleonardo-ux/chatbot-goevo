@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Branding e Visibilidade) ---
+# --- 2. Injeção de CSS (Polimento Visual e Centralização) ---
 st.markdown("""
 <style>
     /* Esconde elementos nativos */
@@ -41,13 +41,13 @@ st.markdown("""
         border: 1px solid #E0E0E0 !important;
     }
 
-    /* AJUSTE: COR DO PLACEHOLDER MAIS CLARA */
+    /* AJUSTE: COR DO PLACEHOLDER ("Como posso te ajudar?") */
     [data-testid="stChatInput"] textarea::placeholder {
         color: #D1D5DB !important; /* Cinza claro suave */
         opacity: 1;
     }
 
-    /* FORÇAR COR DO TEXTO NAS MENSAGENS */
+    /* FORÇAR COR DO TEXTO NAS MENSAGENS (Preto/Cinza Escuro) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
@@ -67,34 +67,32 @@ st.markdown("""
 
     /* CORES DOS ÍCONES (AVATARES) */
     [data-testid="stChatMessageAvatarUser"] {
-        background-color: #808080 !important;
+        background-color: #808080 !important; /* Usuário: Cinza */
     }
 
-    /* IA Evo: Azul Solicitado (#0986D5) */
     [data-testid="stChatMessageAvatarAssistant"] {
-        background-color: #0986D5 !important;
+        background-color: #0986D5 !important; /* IA Evo: Azul GoEvo */
     }
 
-    /* Centralização da coluna da logo */
-    [data-testid="column"] {
+    /* FORÇAR CENTRALIZAÇÃO DA LOGO */
+    [data-testid="stImage"] {
         display: flex;
         justify-content: center;
-        align-items: center;
+        margin-left: auto;
+        margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Pequena e Centralizada) ---
+# --- 3. Logo da GoEvo (Centralizada e Pequena) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Criamos 3 colunas, colocando a logo na coluna do meio (estreita) para centralizar
-col1, col2, col3 = st.columns([1, 0.2, 1])
-with col2:
-    if os.path.exists(CAMINHO_LOGO):
-        # Tamanho reduzido para 60 para ficar bem discreta
-        st.image(CAMINHO_LOGO, width=60)
-    else:
-        st.write("")
+# Centralização garantida via CSS injetado acima
+if os.path.exists(CAMINHO_LOGO):
+    # O CSS injetado garante que o st.image fique centralizado
+    st.image(CAMINHO_LOGO, width=60)
+else:
+    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
 
 # --- 4. Configuração de APIs ---
 try:
@@ -143,7 +141,7 @@ def buscar_contexto(pergunta, colecao):
     except: return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de lista numerada técnica."
+    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica."
     try:
         res = client_openai.chat.completions.create(
             model="gpt-4o",
