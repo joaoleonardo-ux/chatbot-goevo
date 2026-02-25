@@ -3,9 +3,9 @@ import openai
 import chromadb
 
 # --- 1. Configuração da Página ---
-st.set_page_config(page_title="Evo Assist", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Interface (CSS Personalizado) ---
+# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -14,28 +14,47 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* ZERA o preenchimento para tela cheia */
+    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
+    div[class*="container_1upux"] {display: none !important;}
+    div[class*="viewerBadge"] {display: none !important;}
+    button[title="View fullscreen"] {display: none !important;}
+
+    /* ZERA o preenchimento superior para o chat começar do topo */
     .block-container {
         padding-top: 0rem !important;
-        padding-bottom: 2rem !important;
+        padding-bottom: 0rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* Estilo de balões de chat */
+    /* Ajuste global de fontes */
+    html, body, [data-testid="stAppViewContainer"] {
+        font-size: 14px;
+        background-color: transparent !important;
+    }
+
+    /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
-        padding: 0.7rem !important;
+        padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
-        border-radius: 10px;
     }
     
     [data-testid="stChatMessageContent"] p {
         font-size: 0.95rem !important;
-        line-height: 1.5 !important;
+        line-height: 1.4 !important;
+        overflow-wrap: break-word;
+    }
+
+    /* Remove padding extra do topo do chat */
+    [data-testid="stVerticalBlock"] > div:first-child {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# REMOVIDOS: st.title e st.caption para limpar o topo conforme solicitado
 
 # --- 3. Configuração de APIs ---
 try:
