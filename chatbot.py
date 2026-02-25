@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Ajustes Visuais e de Cores) ---
+# --- 2. Injeção de CSS (Branding e Visibilidade) ---
 st.markdown("""
 <style>
     /* Esconde elementos nativos */
@@ -24,7 +24,7 @@ st.markdown("""
         max-width: 100% !important;
     }
 
-    /* FUNDO BRANCO GERAL */
+    /* FUNDO BRANCO INTEGRAL */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
         background-color: #FFFFFF !important;
     }
@@ -41,12 +41,7 @@ st.markdown("""
         border: 1px solid #E0E0E0 !important;
     }
 
-    /* TEXTO DIGITADO PELO USUÁRIO */
-    [data-testid="stChatInput"] textarea {
-        color: #31333F !important;
-    }
-
-    /* AJUSTE: COR DO PLACEHOLDER MAIS CLARA (Como posso te ajudar?) */
+    /* AJUSTE: COR DO PLACEHOLDER MAIS CLARA */
     [data-testid="stChatInput"] textarea::placeholder {
         color: #D1D5DB !important; /* Cinza claro suave */
         opacity: 1;
@@ -70,8 +65,7 @@ st.markdown("""
         border: 1px solid #F0F2F6;
     }
 
-    /* AJUSTE: CORES DOS ÍCONES (AVATARES) */
-    /* Usuário: Cinza */
+    /* CORES DOS ÍCONES (AVATARES) */
     [data-testid="stChatMessageAvatarUser"] {
         background-color: #808080 !important;
     }
@@ -81,7 +75,7 @@ st.markdown("""
         background-color: #0986D5 !important;
     }
 
-    /* Alinhamento da Logo */
+    /* Centralização da coluna da logo */
     [data-testid="column"] {
         display: flex;
         justify-content: center;
@@ -90,16 +84,17 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Centralizada e Pequena) ---
+# --- 3. Logo da GoEvo (Pequena e Centralizada) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Centralização garantida via colunas do Streamlit
-col1, col2, col3 = st.columns([1, 0.3, 1])
+# Criamos 3 colunas, colocando a logo na coluna do meio (estreita) para centralizar
+col1, col2, col3 = st.columns([1, 0.2, 1])
 with col2:
     if os.path.exists(CAMINHO_LOGO):
-        st.image(CAMINHO_LOGO, width=70) # Tamanho pequeno ajustado
+        # Tamanho reduzido para 60 para ficar bem discreta
+        st.image(CAMINHO_LOGO, width=60)
     else:
-        st.write("") # Mantém o espaço caso o arquivo mude de nome
+        st.write("")
 
 # --- 4. Configuração de APIs ---
 try:
@@ -108,7 +103,7 @@ try:
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except:
-    st.error("Erro: Verifique as chaves de API nos Secrets.")
+    st.error("Erro: Verifique os Secrets no Streamlit Cloud.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
