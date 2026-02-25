@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Polimento Visual e Centralização) ---
+# --- 2. Injeção de CSS (Ajustes de Centralização e Cores) ---
 st.markdown("""
 <style>
     /* Esconde elementos nativos */
@@ -41,13 +41,13 @@ st.markdown("""
         border: 1px solid #E0E0E0 !important;
     }
 
-    /* AJUSTE: COR DO PLACEHOLDER ("Como posso te ajudar?") */
+    /* AJUSTE: COR DO PLACEHOLDER AINDA MAIS CLARA */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #D1D5DB !important; /* Cinza claro suave */
+        color: #E5E7EB !important; /* Cinza claríssimo */
         opacity: 1;
     }
 
-    /* FORÇAR COR DO TEXTO NAS MENSAGENS (Preto/Cinza Escuro) */
+    /* FORÇAR COR DO TEXTO NAS MENSAGENS */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
@@ -67,17 +67,26 @@ st.markdown("""
 
     /* CORES DOS ÍCONES (AVATARES) */
     [data-testid="stChatMessageAvatarUser"] {
-        background-color: #808080 !important; /* Usuário: Cinza */
+        background-color: #808080 !important;
     }
 
     [data-testid="stChatMessageAvatarAssistant"] {
-        background-color: #0986D5 !important; /* IA Evo: Azul GoEvo */
+        background-color: #0986D5 !important;
     }
 
-    /* FORÇAR CENTRALIZAÇÃO DA LOGO */
-    [data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
+    /* --- AJUSTE DEFINITIVO DE CENTRALIZAÇÃO DA LOGO --- */
+    /* Alinha o contêiner da imagem ao centro */
+    div.stImage {
+        text-align: center;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        width: 100%;
+    }
+    
+    /* Alinha a tag img propriamente dita */
+    div.stImage > img {
+        display: block;
         margin-left: auto;
         margin-right: auto;
     }
@@ -87,9 +96,8 @@ st.markdown("""
 # --- 3. Logo da GoEvo (Centralizada e Pequena) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Centralização garantida via CSS injetado acima
+# Usamos um container simples; o CSS acima cuidará do alinhamento central
 if os.path.exists(CAMINHO_LOGO):
-    # O CSS injetado garante que o st.image fique centralizado
     st.image(CAMINHO_LOGO, width=60)
 else:
     st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
