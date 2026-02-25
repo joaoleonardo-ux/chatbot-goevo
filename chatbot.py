@@ -156,7 +156,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
         st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Consultando guia de funções..."):
+        with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
             
             if intencao == "SAUDACAO":
@@ -173,3 +173,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
