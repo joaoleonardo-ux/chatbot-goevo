@@ -86,39 +86,56 @@ def carregar_colecoes_chroma():
 
 def rotear_pergunta(pergunta):
     prompt_roteador = f"Classifique a pergunta: SAUDACAO, FUNCIONALIDADE ou PARAMETRO. Responda apenas a palavra. Pergunta: '{pergunta}'"
-    resposta = client_openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt_roteador}],
-        temperature=0, max_tokens=10
-    )
-    intencao = resposta.choices[0].message.content.strip().upper()
-    if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
-    if "PARAMETRO" in intencao: return "PARAMETRO"
-    return "SAUDACAO"
+    try:
+        resposta = client_openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt_roteador}],
+            temperature=0, max_tokens=10
+        )
+        intencao = resposta.choices[0].message.content.strip().upper()
+        if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
+        if "PARAMETRO" in intencao: return "PARAMETRO"
+        return "SAUDACAO"
+    except Exception as e:
+        return "SAUDACAO" # Fallback em caso de erro na API
 
 def buscar_e_sintetizar_contexto(pergunta, colecao, n_results_inicial=10):
     if colecao is None: return "", None
-    emb = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small").data[0].embedding
-    res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
-    meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
-    
-    if not meta_iniciais: return "", None
+    try:
+        emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
+        emb = emb_response.data[0].embedding
+        
+        res_iniciais = colecao.query(query_embeddings=[emb], n_results=n_results_inicial)
+        meta_iniciais = res_iniciais.get('metadatas', [[]])[0]
+        
+        if not meta_iniciais: return "", None
 
-    fontes = list(set([doc['fonte'] for doc in meta_iniciais]))
-    res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
-    meta_completos = res_filtrados.get('metadatas', [[]])[0]
-    
-    contexto = "\n\n---\n\n".join([doc['texto_original'] for doc in meta_completos])
-    video = meta_iniciais[0].get('video_url')
-    return contexto, video
+        # Garante que a chave 'fonte' existe antes de acessar
+        fontes = list(set([doc.get('fonte') for doc in meta_iniciais if doc.get('fonte')]))
+        
+        res_filtrados = colecao.query(query_embeddings=[emb], where={"fonte": {"$in": fontes}}, n_results=50)
+        meta_completos = res_filtrados.get('metadatas', [[]])[0]
+        
+        # Garante que a chave 'texto_original' existe antes de acessar
+        contexto = "\n\n---\n\n".join([doc.get('texto_original', '') for doc in meta_completos if doc.get('texto_original')])
+        
+        # Tenta pegar o vídeo do primeiro resultado, se existir
+        video = meta_iniciais[0].get('video_url') if meta_iniciais else None
+        return contexto, video
+    except Exception as e:
+        st.error(f"Erro na busca: {e}")
+        return "", None
 
 def gerar_resposta_sintetizada(pergunta, contexto, prompt):
-    resposta = client_openai.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "system", "content": prompt}, {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}],
-        temperature=0.5
-    )
-    return resposta.choices[0].message.content
+    try:
+        resposta = client_openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}],
+            temperature=0.5
+        )
+        return resposta.choices[0].message.content
+    except Exception as e:
+        return "Erro ao gerar resposta."
 
 # --- 5. Lógica do Chat ---
 p_func = "Você é o Evo. Responda de forma direta e numerada usando o contexto."
@@ -133,12 +150,11 @@ if "messages" not in st.session_state:
         {"role": "assistant", "content": RES_SAUDACAO}
     ]
 
-# Exibe histórico de mensagens
+# Exibe histórico de mensagens (sem player de vídeo)
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        if msg["role"] == "assistant" and "video" in msg and msg["video"]:
-            st.video(msg["video"])
+        # A linha 'if msg["role"] == "assistant" and "video" in msg and msg["video"]: st.video(msg["video"])' foi removida
 
 # Processa a entrada do usuário
 if pergunta := st.chat_input("Qual a sua dúvida?"):
@@ -150,17 +166,30 @@ if pergunta := st.chat_input("Qual a sua dúvida?"):
         with st.spinner("Analisando..."):
             intencao = rotear_pergunta(pergunta)
             video_mostrar = None
+            res_final = ""
             
             if intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
                 col = colecao_func if intencao == "FUNCIONALIDADE" else colecao_param
                 p = p_func if intencao == "FUNCIONALIDADE" else p_param
-                ctx, video_mostrar = buscar_e_sintetizar_contexto(pergunta, col)
-                res_final = gerar_resposta_sintetizada(pergunta, ctx, p) if ctx else "Não encontrei essa informação."
+                
+                if col:
+                    ctx, video_mostrar = buscar_e_sintetizar_contexto(pergunta, col)
+                    if ctx:
+                        res_final = gerar_resposta_sintetizada(pergunta, ctx, p)
+                    else:
+                        res_final = "Não encontrei essa informação na minha base de conhecimento."
+                else:
+                     res_final = "Desculpe, a base de conhecimento não está disponível."
+
+            # --- AJUSTE: Adiciona o link do vídeo ao final da resposta, se houver ---
+            if video_mostrar:
+                res_final += f"\n\n---\n\n**🎥 Vídeo Explicativo:**\n\nEssa funcionalidade possui um vídeo explicativo de como funciona. [Clique aqui para visualizar]({video_mostrar})."
+            # ---------------------------------------------------------------------
 
             st.markdown(res_final)
-            if video_mostrar:
-                st.video(video_mostrar)
+            # A linha 'if video_mostrar: st.video(video_mostrar)' foi removida
     
-    st.session_state.messages.append({"role": "assistant", "content": res_final, "video": video_mostrar})
+    # Salva a resposta completa (com o link) no histórico.
+    st.session_state.messages.append({"role": "assistant", "content": res_final})
