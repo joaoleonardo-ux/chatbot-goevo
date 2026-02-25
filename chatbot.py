@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Ajustes Finos de Layout e Cores) ---
+# --- 2. Injeção de CSS (Ajustes Visuais e de Cores) ---
 st.markdown("""
 <style>
     /* Esconde elementos nativos */
@@ -15,7 +15,7 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* ZERA o preenchimento superior e lateral para caber no iframe */
+    /* ZERA o preenchimento superior */
     .block-container {
         padding-top: 0.5rem !important;
         padding-bottom: 0rem !important;
@@ -29,32 +29,30 @@ st.markdown("""
         background-color: #FFFFFF !important;
     }
 
-    /* AJUSTE DA CAIXA DE DIGITAÇÃO (CONTAINER) */
+    /* REMOVE A FAIXA ESCURA DO RODAPÉ */
     [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
-        padding-bottom: 10px !important;
     }
 
-    /* ESTILO DO INPUT DE TEXTO */
+    /* ESTILO DA CAIXA DE INPUT */
     [data-testid="stChatInput"] {
-        background-color: #F7F9FB !important; /* Cinza bem clarinho no fundo */
+        background-color: #F7F9FB !important;
         border-radius: 12px !important;
         border: 1px solid #E0E0E0 !important;
     }
 
-    /* COR DO TEXTO DIGITADO (Preto) */
+    /* TEXTO DIGITADO PELO USUÁRIO */
     [data-testid="stChatInput"] textarea {
         color: #31333F !important;
     }
 
-    /* --- NOVO: COR DO PLACEHOLDER ("Como posso te ajudar?") --- */
-    /* Deixa o texto de exemplo cinza claro */
+    /* AJUSTE: COR DO PLACEHOLDER MAIS CLARA (Como posso te ajudar?) */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #9CA3AF !important;
-        opacity: 1; /* Garante a cor em alguns navegadores */
+        color: #D1D5DB !important; /* Cinza claro suave */
+        opacity: 1;
     }
 
-    /* FORÇAR COR DO TEXTO NAS MENSAGENS (Para não sumir no fundo branco) */
+    /* FORÇAR COR DO TEXTO NAS MENSAGENS */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
@@ -72,51 +70,45 @@ st.markdown("""
         border: 1px solid #F0F2F6;
     }
 
-    /* CORES DOS ÍCONES (AVATARES) */
-    [data-testid="stChatMessageAvatarUser"] { background-color: #808080 !important; }
-    [data-testid="stChatMessageAvatarAssistant"] { background-color: #004aad !important; }
+    /* AJUSTE: CORES DOS ÍCONES (AVATARES) */
+    /* Usuário: Cinza */
+    [data-testid="stChatMessageAvatarUser"] {
+        background-color: #808080 !important;
+    }
 
-    /* --- NOVO: ESTILO PARA A LOGO --- */
-    .logo-container {
+    /* IA Evo: Azul Solicitado (#0986D5) */
+    [data-testid="stChatMessageAvatarAssistant"] {
+        background-color: #0986D5 !important;
+    }
+
+    /* Alinhamento da Logo */
+    [data-testid="column"] {
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-top: 5px;
-        margin-bottom: 15px;
-    }
-    
-    /* Força a logo a ficar pequena */
-    .logo-container img {
-        max-width: 70px !important; /* Tamanho fixo pequeno */
-        height: auto !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Renderização via HTML para controle total) ---
+# --- 3. Logo da GoEvo (Centralizada e Pequena) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Verifica se o arquivo existe antes de tentar mostrar
-if os.path.exists(CAMINHO_LOGO):
-    st.markdown(f"""
-        <div class="logo-container">
-            <img src="{CAMINHO_LOGO}" alt="Logo GoEvo">
-        </div>
-    """, unsafe_allow_html=True)
-else:
-    # Espaço vazio se a logo não carregar, para não quebrar o layout
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
-
+# Centralização garantida via colunas do Streamlit
+col1, col2, col3 = st.columns([1, 0.3, 1])
+with col2:
+    if os.path.exists(CAMINHO_LOGO):
+        st.image(CAMINHO_LOGO, width=70) # Tamanho pequeno ajustado
+    else:
+        st.write("") # Mantém o espaço caso o arquivo mude de nome
 
 # --- 4. Configuração de APIs ---
 try:
-    # Tenta pegar dos secrets do Streamlit Cloud
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
-except Exception:
-    st.error("Erro: Chaves de API não configuradas nos Secrets.")
+except:
+    st.error("Erro: Verifique as chaves de API nos Secrets.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -156,7 +148,7 @@ def buscar_contexto(pergunta, colecao):
     except: return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica e direta."
+    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de lista numerada técnica."
     try:
         res = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -175,17 +167,14 @@ colecao_func = carregar_colecao()
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza as mensagens antigas
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-# Input do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"): st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        # Spinner mais discreto
         with st.spinner("..."):
             intencao = rotear_pergunta(pergunta)
             if intencao == "AGRADECIMENTO":
