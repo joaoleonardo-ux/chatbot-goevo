@@ -5,7 +5,7 @@ import chromadb
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Profissional ---
+# --- 2. Injeção de CSS para Interface Profissional e Clara ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -14,7 +14,7 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* ZERA o preenchimento superior */
+    /* Remove o preenchimento padrão do Streamlit */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 0rem !important;
@@ -23,17 +23,29 @@ st.markdown("""
         max-width: 100% !important;
     }
 
-    /* FUNDO BRANCO DA PÁGINA */
+    /* FUNDO BRANCO DA PÁGINA E DA ÁREA INFERIOR */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
         background-color: #FFFFFF !important;
     }
 
-    /* AJUSTE DA CAIXA DE DIGITAÇÃO (Removendo o fundo preto) */
+    /* REMOVE A FAIXA PRETA DA CAIXA DE DIGITAÇÃO */
     [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
     }
 
-    /* COR DO TEXTO (Garante visibilidade no fundo branco) */
+    /* CAIXA DE DIGITAÇÃO (Input) EM CINZA CLARO */
+    [data-testid="stChatInput"] {
+        background-color: #F0F2F6 !important;
+        border-radius: 10px !important;
+        border: 1px solid #E0E0E0 !important;
+    }
+    
+    /* Garante que o texto digitado seja escuro */
+    [data-testid="stChatInput"] textarea {
+        color: #31333F !important;
+    }
+
+    /* COR DO TEXTO NAS MENSAGENS (Garante visibilidade total) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
@@ -42,50 +54,44 @@ st.markdown("""
         line-height: 1.5 !important;
     }
 
-    /* ESTILO DOS BALÕES DE CHAT */
+    /* BALÕES DE CHAT */
     [data-testid="stChatMessage"] {
         padding: 0.8rem !important;
         margin-bottom: 0.5rem !important;
         border-radius: 12px;
-        background-color: #F8F9FB !important; /* Fundo suave para o Evo */
+        background-color: #F8F9FB !important; /* Leve destaque para o fundo */
         border: 1px solid #F0F2F6;
     }
 
-    /* AJUSTE DOS ÍCONES (AVATARES) */
-    /* Ícone do Usuário (Cinza) */
+    /* CORES DOS ÍCONES (AVATARES) */
+    /* Usuário (Cinza) */
     [data-testid="stChatMessageAvatarUser"] {
         background-color: #808080 !important;
     }
 
-    /* Ícone da IA (Azul GoEvo) */
+    /* IA Evo (Azul GoEvo) */
     [data-testid="stChatMessageAvatarAssistant"] {
         background-color: #004aad !important;
     }
 
-    /* Caixa de entrada estilizada */
-    [data-testid="stChatInput"] {
-        border-radius: 10px !important;
-        border: 1px solid #E0E0E0 !important;
-    }
-
-    /* Centralização da Logo */
+    /* Centralização da Logo no Topo */
     .logo-container {
         display: flex;
         justify-content: center;
-        padding-bottom: 20px;
+        align-items: center;
+        padding: 10px 0 20px 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. Logo da GoEvo no Topo ---
-# Substitua a URL abaixo pelo link da sua imagem (.png ou .jpg)
-URL_LOGO = "https://sua-url-da-logo-aqui.png" 
+URL_LOGO = "https://s3.amazonaws.com//beta-img.b2bstack.net/uploads/production/product/product_image/396/Marca-GOEVO.jpg"
 
-with st.container():
-    st.markdown(f'<div class="logo-container">', unsafe_allow_html=True)
-    # Se você preferir usar um arquivo local, use st.image("caminho/para/logo.png")
-    # st.image(URL_LOGO, width=150) 
-    st.markdown('</div>', unsafe_allow_html=True)
+st.markdown(f"""
+    <div class="logo-container">
+        <img src="{URL_LOGO}" width="180">
+    </div>
+""", unsafe_allow_html=True)
 
 # --- 4. Configuração de APIs ---
 try:
@@ -99,7 +105,7 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 5. Funções do Core ---
+# --- 5. Funções de IA (Roteamento e Busca) ---
 
 @st.cache_resource
 def carregar_colecao():
@@ -111,7 +117,7 @@ def carregar_colecao():
         )
         return _client.get_collection("colecao_funcionalidades")
     except Exception as e:
-        st.error(f"Erro ao conectar com a base: {e}")
+        st.error(f"Erro de conexão: {e}")
         return None
 
 def rotear_pergunta(pergunta):
@@ -135,26 +141,31 @@ def buscar_contexto_seguro(pergunta, colecao):
     try:
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
+        
+        # Busca o melhor resultado (TOP 1)
         res_topo = colecao.query(query_embeddings=[emb], n_results=1)
         if not res_topo['metadatas'][0]: return "", None, ""
-        meta_principal = res_topo['metadatas'][0][0]
-        fonte_alvo = meta_principal.get('fonte')
-        video_url = meta_principal.get('video_url')
+
+        meta = res_topo['metadatas'][0][0]
+        fonte_alvo = meta.get('fonte')
+        video_url = meta.get('video_url')
+
+        # Recupera todos os passos da mesma fonte para manter integridade
         res_completos = colecao.query(query_embeddings=[emb], where={"fonte": fonte_alvo}, n_results=15)
         fragmentos = res_completos.get('metadatas', [[]])[0]
         contexto = "\n\n".join([f.get('texto_original', '') for f in fragmentos if f.get('texto_original')])
+        
         return contexto, video_url, fonte_alvo
-    except Exception as e:
+    except:
         return "", None, ""
 
-def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
-    Sua missão é fornecer instruções idênticas e padronizadas.
-    REGRAS:
-    1. Comece com: "Para realizar {nome_feature}, siga estes passos:"
-    2. Use listas numeradas.
-    3. Seja direto e técnico. 
-    4. Responda apenas com base no contexto. Se não souber, diga que não encontrou."""
+def gerar_resposta_padronizada(pergunta, contexto, nome_feature):
+    prompt_sistema = f"""Você é o Evo, assistente da GoEvo. 
+    REGRAS RÍGIDAS:
+    1. Responda: "Para realizar {nome_feature}, siga estes passos:"
+    2. Liste os passos numerados conforme o contexto.
+    3. Use tom profissional e direto.
+    4. Se não souber, diga: "Não encontrei o procedimento exato na base." """
 
     try:
         resposta = client_openai.chat.completions.create(
@@ -167,12 +178,12 @@ def gerar_resposta(pergunta, contexto, nome_feature):
         )
         return resposta.choices[0].message.content
     except:
-        return "Erro ao processar."
+        return "Erro ao processar a resposta."
 
-# --- 6. Execução do Chat ---
+# --- 6. Fluxo do Chat ---
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar hoje?"
-RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se precisar de algo mais, é só chamar! 😊"
+RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar você hoje?"
+RES_AGRADECIMENTO = "De nada! Fico feliz em poder ajudar. Se precisar de algo mais, estou à disposição! 😊"
 colecao_func = carregar_colecao()
 
 if "messages" not in st.session_state:
@@ -188,8 +199,9 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
         st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Escrevendo..."):
+        with st.spinner("Consultando base..."):
             intencao = rotear_pergunta(pergunta)
+            
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
             elif intencao == "SAUDACAO":
@@ -197,11 +209,11 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             else:
                 ctx, video, nome_f = buscar_contexto_seguro(pergunta, colecao_func)
                 if ctx:
-                    res_final = gerar_resposta(pergunta, ctx, nome_f)
+                    res_final = gerar_resposta_padronizada(pergunta, ctx, nome_f)
                     if video:
-                        res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\n[Clique aqui para abrir o vídeo]({video})"
+                        res_final += f"\n\n---\n**🎥 Tutorial em Vídeo:** [Clique aqui para assistir]({video})"
                 else:
-                    res_final = "Ainda não encontrei esse procedimento. Pode detalhar melhor?"
+                    res_final = "Desculpe, ainda não tenho o passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
