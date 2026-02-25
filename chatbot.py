@@ -6,108 +6,81 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Reset de Rodapé e Centralização) ---
+# --- 2. Injeção de CSS (Reseta Rodapé, Centraliza Logo e Ajusta Cores) ---
 st.markdown("""
 <style>
-    /* Esconde Header e Footer nativos */
-    header {visibility: hidden; height: 0px !important;}
-    footer {display: none !important;}
-    [data-testid="stHeader"] {display: none !important;}
-    [data-testid="stFooter"] {display: none !important;}
+    /* Esconde elementos nativos */
+    header, footer, [data-testid="stHeader"] {display: none !important;}
     
-    /* ZERA o preenchimento superior e ajusta o fundo */
-    .block-container {
-        padding-top: 0rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        max-width: 100% !important;
-    }
-
-    /* FUNDO BRANCO EM TUDO */
-    html, body, [data-testid="stAppViewContainer"] {
+    /* 1. RESET DE FUNDO (Resolve o problema do escuro) */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
         background-color: #FFFFFF !important;
     }
 
-    /* --- AJUSTE DA SESSÃO DE INPUT (RODAPÉ) --- */
-    /* Remove o fundo escuro e diminui a altura excessiva */
-    [data-testid="stBottom"] {
-        background-color: #FFFFFF !important;
-        padding-bottom: 20px !important;
-    }
-    
+    /* 2. AJUSTE DO RODAPÉ (Diminui a sessão e muda a cor) */
     [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
-        padding: 0px !important;
+        padding-bottom: 15px !important;
+        padding-top: 0px !important;
     }
 
-    /* Caixa de digitação mais compacta e cinza claro */
     [data-testid="stChatInput"] {
-        background-color: #F0F2F6 !important;
+        background-color: #F7F9FB !important;
         border-radius: 10px !important;
         border: 1px solid #E0E0E0 !important;
-        margin-bottom: 10px !important;
     }
 
-    /* Texto do Placeholder ("Como posso te ajudar?") */
+    /* Placeholder ("Como posso te ajudar?") cinza claro */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #A0AEC0 !important;
+        color: #D1D5DB !important;
     }
 
-    /* FORÇAR COR DO TEXTO (Preto/Cinza Escuro) */
+    /* 3. VISIBILIDADE DO TEXTO (Resolve o passo a passo invisível) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
         color: #31333F !important;
         font-size: 0.95rem !important;
+        line-height: 1.5 !important;
     }
 
-    /* BALÕES DE CHAT */
+    /* 4. BALÕES DE CHAT COMPACTOS */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
+        border-radius: 12px;
         background-color: #F8F9FB !important;
         border: 1px solid #F0F2F6;
-        border-radius: 12px;
     }
 
-    /* CORES DOS ÍCONES (AVATARES) */
-    /* Usuário: Cinza */
-    [data-testid="stChatMessageAvatarUser"] {
-        background-color: #808080 !important;
-    }
-    /* IA Evo: Azul GoEvo */
-    [data-testid="stChatMessageAvatarAssistant"] {
-        background-color: #0986D5 !important;
-    }
+    /* 5. CORES DOS ÍCONES (AVATARES) */
+    [data-testid="stChatMessageAvatarUser"] { background-color: #808080 !important; }
+    [data-testid="stChatMessageAvatarAssistant"] { background-color: #0986D5 !important; }
 
-    /* --- CENTRALIZAÇÃO DA LOGO --- */
-    /* Garante que o container da coluna centralize a imagem */
-    [data-testid="column"] {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        text-align: center !important;
-    }
-    
-    div.stImage > img {
+    /* 6. FORÇAR CENTRALIZAÇÃO DA LOGO NO CONTEINER */
+    [data-testid="stImage"] img {
+        display: block;
         margin-left: auto;
         margin-right: auto;
+    }
+    
+    .block-container {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Centralizada via Colunas e CSS) ---
+# --- 3. Logo da GoEvo (Centralização via Colunas) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Criamos 3 colunas iguais. A logo fica na do meio para garantir centralização.
-col1, col2, col3 = st.columns([1, 1, 1])
-with col2:
+# Criamos 3 colunas: a do meio é onde a logo fica "presa" centralizada
+c1, c2, c3 = st.columns([1, 0.3, 1])
+with c2:
     if os.path.exists(CAMINHO_LOGO):
-        # Tamanho pequeno conforme solicitado
-        st.image(CAMINHO_LOGO, width=65)
+        st.image(CAMINHO_LOGO, width=65) # Tamanho pequeno e centralizado
     else:
-        st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
 
 # --- 4. Configuração de APIs ---
 try:
@@ -116,12 +89,12 @@ try:
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except:
-    st.error("Erro nas chaves de API nos Secrets.")
+    st.error("Erro nas chaves de API.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 5. Funções do Chatbot ---
+# --- 5. Funções do Chatbot (Roteamento e Busca) ---
 
 @st.cache_resource
 def carregar_colecao():
@@ -156,7 +129,7 @@ def buscar_contexto(pergunta, colecao):
     except: return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica."
+    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de lista numerada."
     try:
         res = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -168,23 +141,19 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 
 # --- 6. Fluxo do Chat ---
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar você hoje?"
-RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se precisar de algo mais, é só chamar! 😊"
+RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar?"
+RES_AGRADECIMENTO = "De nada! Se precisar de algo mais, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza histórico
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
-# Input do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
-    with st.chat_message("user"):
-        st.markdown(pergunta)
+    with st.chat_message("user"): st.markdown(pergunta)
 
     with st.chat_message("assistant"):
         with st.spinner("..."):
@@ -197,9 +166,9 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                 ctx, video, nome_f = buscar_contexto(pergunta, colecao_func)
                 if ctx:
                     res_final = gerar_resposta(pergunta, ctx, nome_f)
-                    if video: res_final += f"\n\n---\n**🎥 Tutorial:** [Clique aqui para assistir]({video})"
+                    if video: res_final += f"\n\n---\n**🎥 Tutorial:** [Clique aqui]({video})"
                 else:
-                    res_final = "Desculpe, ainda não tenho o passo a passo para essa funcionalidade."
+                    res_final = "Ainda não tenho esse passo a passo."
             
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
