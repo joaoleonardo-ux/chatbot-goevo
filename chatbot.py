@@ -6,101 +6,108 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Ajustes de Centralização e Cores) ---
+# --- 2. Injeção de CSS (Reset de Rodapé e Centralização) ---
 st.markdown("""
 <style>
-    /* Esconde elementos nativos */
+    /* Esconde Header e Footer nativos */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* ZERA o preenchimento superior */
+    /* ZERA o preenchimento superior e ajusta o fundo */
     .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-top: 0rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* FUNDO BRANCO INTEGRAL */
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
+    /* FUNDO BRANCO EM TUDO */
+    html, body, [data-testid="stAppViewContainer"] {
         background-color: #FFFFFF !important;
     }
 
-    /* REMOVE A FAIXA ESCURA DO RODAPÉ */
+    /* --- AJUSTE DA SESSÃO DE INPUT (RODAPÉ) --- */
+    /* Remove o fundo escuro e diminui a altura excessiva */
+    [data-testid="stBottom"] {
+        background-color: #FFFFFF !important;
+        padding-bottom: 20px !important;
+    }
+    
     [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
+        padding: 0px !important;
     }
 
-    /* ESTILO DA CAIXA DE INPUT */
+    /* Caixa de digitação mais compacta e cinza claro */
     [data-testid="stChatInput"] {
-        background-color: #F7F9FB !important;
-        border-radius: 12px !important;
+        background-color: #F0F2F6 !important;
+        border-radius: 10px !important;
         border: 1px solid #E0E0E0 !important;
+        margin-bottom: 10px !important;
     }
 
-    /* AJUSTE: COR DO PLACEHOLDER AINDA MAIS CLARA */
+    /* Texto do Placeholder ("Como posso te ajudar?") */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #E5E7EB !important; /* Cinza claríssimo */
-        opacity: 1;
+        color: #A0AEC0 !important;
     }
 
-    /* FORÇAR COR DO TEXTO NAS MENSAGENS */
+    /* FORÇAR COR DO TEXTO (Preto/Cinza Escuro) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
         color: #31333F !important;
         font-size: 0.95rem !important;
-        line-height: 1.5 !important;
     }
 
     /* BALÕES DE CHAT */
     [data-testid="stChatMessage"] {
-        padding: 0.7rem !important;
+        padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
-        border-radius: 12px;
         background-color: #F8F9FB !important;
         border: 1px solid #F0F2F6;
+        border-radius: 12px;
     }
 
     /* CORES DOS ÍCONES (AVATARES) */
+    /* Usuário: Cinza */
     [data-testid="stChatMessageAvatarUser"] {
         background-color: #808080 !important;
     }
-
+    /* IA Evo: Azul GoEvo */
     [data-testid="stChatMessageAvatarAssistant"] {
         background-color: #0986D5 !important;
     }
 
-    /* --- AJUSTE DEFINITIVO DE CENTRALIZAÇÃO DA LOGO --- */
-    /* Alinha o contêiner da imagem ao centro */
-    div.stImage {
-        text-align: center;
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-        width: 100%;
+    /* --- CENTRALIZAÇÃO DA LOGO --- */
+    /* Garante que o container da coluna centralize a imagem */
+    [data-testid="column"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
     }
     
-    /* Alinha a tag img propriamente dita */
     div.stImage > img {
-        display: block;
         margin-left: auto;
         margin-right: auto;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Centralizada e Pequena) ---
+# --- 3. Logo da GoEvo (Centralizada via Colunas e CSS) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Usamos um container simples; o CSS acima cuidará do alinhamento central
-if os.path.exists(CAMINHO_LOGO):
-    st.image(CAMINHO_LOGO, width=60)
-else:
-    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
+# Criamos 3 colunas iguais. A logo fica na do meio para garantir centralização.
+col1, col2, col3 = st.columns([1, 1, 1])
+with col2:
+    if os.path.exists(CAMINHO_LOGO):
+        # Tamanho pequeno conforme solicitado
+        st.image(CAMINHO_LOGO, width=65)
+    else:
+        st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
 
 # --- 4. Configuração de APIs ---
 try:
@@ -109,7 +116,7 @@ try:
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
 except:
-    st.error("Erro: Verifique os Secrets no Streamlit Cloud.")
+    st.error("Erro nas chaves de API nos Secrets.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -168,12 +175,16 @@ colecao_func = carregar_colecao()
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
+# Renderiza histórico
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]): st.markdown(msg["content"])
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
+# Input do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
-    with st.chat_message("user"): st.markdown(pergunta)
+    with st.chat_message("user"):
+        st.markdown(pergunta)
 
     with st.chat_message("assistant"):
         with st.spinner("..."):
