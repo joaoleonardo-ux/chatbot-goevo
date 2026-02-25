@@ -5,51 +5,53 @@ import chromadb
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Profissional e Clara ---
+# --- 2. Injeção de CSS Refinado ---
 st.markdown("""
 <style>
-    /* Esconde Header, Footer e Menus nativos */
+    /* Esconde Header e Footer nativos */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove o preenchimento padrão do Streamlit */
+    /* ZERA o preenchimento superior */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0.5rem !important;
         padding-bottom: 0rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* FUNDO BRANCO DA PÁGINA E DA ÁREA INFERIOR */
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
+    /* FUNDO BRANCO DA PÁGINA */
+    html, body, [data-testid="stAppViewContainer"] {
         background-color: #FFFFFF !important;
     }
 
-    /* REMOVE A FAIXA PRETA DA CAIXA DE DIGITAÇÃO */
-    [data-testid="stBottom"] > div {
+    /* CORREÇÃO DO RODAPÉ (Caixa de digitação) */
+    /* Remove o fundo preto do container do rodapé */
+    [data-testid="stBottom"], [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
     }
 
-    /* CAIXA DE DIGITAÇÃO (Input) EM CINZA CLARO */
+    /* Estilização da caixa de input para cinza claro */
     [data-testid="stChatInput"] {
-        background-color: #F0F2F6 !important;
+        background-color: #F7F9FB !important;
         border-radius: 10px !important;
         border: 1px solid #E0E0E0 !important;
     }
-    
-    /* Garante que o texto digitado seja escuro */
+
+    /* Garante que o texto digitado pelo usuário seja visível (preto) */
     [data-testid="stChatInput"] textarea {
         color: #31333F !important;
     }
 
-    /* COR DO TEXTO NAS MENSAGENS (Garante visibilidade total) */
+    /* FORÇAR COR DO TEXTO (Resolve o problema do texto invisível) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
-    [data-testid="stChatMessageContent"] ol {
-        color: #31333F !important;
+    [data-testid="stChatMessageContent"] ol,
+    [data-testid="stChatMessageContent"] ul {
+        color: #31333F !important; /* Cinza escuro/preto */
         font-size: 0.95rem !important;
         line-height: 1.5 !important;
     }
@@ -59,7 +61,7 @@ st.markdown("""
         padding: 0.8rem !important;
         margin-bottom: 0.5rem !important;
         border-radius: 12px;
-        background-color: #F8F9FB !important; /* Leve destaque para o fundo */
+        background-color: #F8F9FB !important;
         border: 1px solid #F0F2F6;
     }
 
@@ -74,22 +76,22 @@ st.markdown("""
         background-color: #004aad !important;
     }
 
-    /* Centralização da Logo no Topo */
+    /* Centralização da Logo Pequena */
     .logo-container {
         display: flex;
         justify-content: center;
         align-items: center;
-        padding: 10px 0 20px 0;
+        padding: 5px 0 15px 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo no Topo ---
+# --- 3. Logo da GoEvo (Pequena) ---
 URL_LOGO = "https://s3.amazonaws.com//beta-img.b2bstack.net/uploads/production/product/product_image/396/Marca-GOEVO.jpg"
 
 st.markdown(f"""
     <div class="logo-container">
-        <img src="{URL_LOGO}" width="180">
+        <img src="{URL_LOGO}" width="80">
     </div>
 """, unsafe_allow_html=True)
 
@@ -105,7 +107,7 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 5. Funções de IA (Roteamento e Busca) ---
+# --- 5. Funções de IA ---
 
 @st.cache_resource
 def carregar_colecao():
@@ -141,20 +143,14 @@ def buscar_contexto_seguro(pergunta, colecao):
     try:
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
-        
-        # Busca o melhor resultado (TOP 1)
         res_topo = colecao.query(query_embeddings=[emb], n_results=1)
         if not res_topo['metadatas'][0]: return "", None, ""
-
         meta = res_topo['metadatas'][0][0]
         fonte_alvo = meta.get('fonte')
         video_url = meta.get('video_url')
-
-        # Recupera todos os passos da mesma fonte para manter integridade
         res_completos = colecao.query(query_embeddings=[emb], where={"fonte": fonte_alvo}, n_results=15)
         fragmentos = res_completos.get('metadatas', [[]])[0]
         contexto = "\n\n".join([f.get('texto_original', '') for f in fragmentos if f.get('texto_original')])
-        
         return contexto, video_url, fonte_alvo
     except:
         return "", None, ""
@@ -166,7 +162,6 @@ def gerar_resposta_padronizada(pergunta, contexto, nome_feature):
     2. Liste os passos numerados conforme o contexto.
     3. Use tom profissional e direto.
     4. Se não souber, diga: "Não encontrei o procedimento exato na base." """
-
     try:
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -178,7 +173,7 @@ def gerar_resposta_padronizada(pergunta, contexto, nome_feature):
         )
         return resposta.choices[0].message.content
     except:
-        return "Erro ao processar a resposta."
+        return "Erro ao processar."
 
 # --- 6. Fluxo do Chat ---
 
@@ -201,7 +196,6 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
     with st.chat_message("assistant"):
         with st.spinner("Consultando base..."):
             intencao = rotear_pergunta(pergunta)
-            
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
             elif intencao == "SAUDACAO":
@@ -213,7 +207,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                     if video:
                         res_final += f"\n\n---\n**🎥 Tutorial em Vídeo:** [Clique aqui para assistir]({video})"
                 else:
-                    res_final = "Desculpe, ainda não tenho o passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
+                    res_final = "Desculpe, ainda não tenho o passo a passo para essa funcionalidade."
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
