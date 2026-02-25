@@ -5,7 +5,7 @@ import chromadb
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
+# --- 2. Injeção de CSS para Interface Totalmente Limpa e Branding ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -14,39 +14,67 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
-    div[class*="container_1upux"] {display: none !important;}
-    div[class*="viewerBadge"] {display: none !important;}
-    button[title="View fullscreen"] {display: none !important;}
-
-    /* ZERA o preenchimento superior para o chat começar do topo */
+    /* ZERA o preenchimento superior */
     .block-container {
         padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
+        padding-bottom: 0.5rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* Ajuste global de fontes */
+    /* FUNDO BRANCO DA PÁGINA */
     html, body, [data-testid="stAppViewContainer"] {
-        font-size: 14px;
-        background-color: transparent !important;
+        background-color: #FFFFFF !important;
     }
 
-    /* Balões de chat compactos */
+    /* Ajuste global de fontes */
+    [data-testid="stAppViewContainer"] {
+        font-size: 14px;
+        color: #31333F !important;
+    }
+
+    /* ESTILO GERAL DOS BALÕES DE CHAT */
     [data-testid="stChatMessage"] {
-        padding: 0.5rem !important;
+        padding: 0.6rem !important;
         margin-bottom: 0.5rem !important;
+        border-radius: 12px;
+    }
+
+    /* BALÃO DO ASSISTENTE (Evo) - Cinza claro */
+    [data-test-id="stChatMessageAssistant"], 
+    [data-testid="stChatMessage"]:nth-child(odd) {
+        background-color: #F8F9FB !important;
+        border: 1px solid #F0F2F6;
     }
     
-    [data-testid="stChatMessageContent"] p {
-        font-size: 0.95rem !important;
-        line-height: 1.4 !important;
-        overflow-wrap: break-word;
+    /* BALÃO DO USUÁRIO - Azul GoEvo */
+    /* Nota: O seletor nth-child(even) foca nas respostas do usuário após a saudação inicial */
+    [data-test-id="stChatMessageUser"], 
+    [data-testid="stChatMessage"]:nth-child(even) {
+        background-color: #004aad !important; /* Azul GoEvo */
+        color: #FFFFFF !important;
     }
 
-    /* Remove padding extra do topo do chat */
+    /* Garante que o texto do usuário seja branco */
+    [data-testid="stChatMessage"]:nth-child(even) p {
+        color: #FFFFFF !important;
+    }
+
+    /* Texto do assistente continua escuro */
+    [data-testid="stChatMessage"]:nth-child(odd) p {
+        color: #31333F !important;
+        font-size: 0.95rem !important;
+        line-height: 1.4 !important;
+    }
+
+    /* Caixa de entrada */
+    [data-testid="stChatInput"] {
+        border-radius: 10px !important;
+        border: 1px solid #E0E0E0 !important;
+    }
+
+    /* Remove padding extra do topo */
     [data-testid="stVerticalBlock"] > div:first-child {
         margin-top: 0px !important;
         padding-top: 0px !important;
@@ -82,9 +110,7 @@ def carregar_colecao():
         return None
 
 def rotear_pergunta(pergunta):
-    """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        # Ajustado para incluir a categoria AGRADECIMENTO
         prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -129,7 +155,6 @@ def buscar_contexto_seguro(pergunta, colecao):
         return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    """Sintetiza a resposta com temperatura 0 e regras rígidas de formatação."""
     prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
     Sua missão é fornecer instruções idênticas e padronizadas.
     
@@ -152,24 +177,21 @@ def gerar_resposta(pergunta, contexto, nome_feature):
         )
         return resposta.choices[0].message.content
     except:
-        return "Desculpe, tive um problema ao processar sua resposta. Pode tentar novamente?"
+        return "Desculpe, tive um problema ao processar sua resposta."
 
 # --- 5. Execução do Chat ---
 
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
-RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
+RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
-# Inicializa histórico
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza histórico
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Entrada do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"):
@@ -179,7 +201,6 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
             
-            # Lógica de resposta baseada na intenção
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
             elif intencao == "SAUDACAO":
@@ -189,9 +210,9 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                 if ctx:
                     res_final = gerar_resposta(pergunta, ctx, nome_f)
                     if video:
-                        res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo detalhado: [Clique aqui para abrir o vídeo]({video})"
+                        res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo: [Clique aqui para abrir o vídeo]({video})"
                 else:
-                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
+                    res_final = "Ainda não encontrei esse passo a passo. Pode detalhar melhor?"
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
