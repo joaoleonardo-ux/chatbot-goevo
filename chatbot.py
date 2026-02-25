@@ -1,11 +1,12 @@
 import streamlit as st
 import openai
 import chromadb
+import os
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Ajustes de Cores e Visibilidade) ---
+# --- 2. Injeção de CSS (Ajustes Finos de Layout e Cores) ---
 st.markdown("""
 <style>
     /* Esconde elementos nativos */
@@ -14,33 +15,46 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* ZERA o preenchimento superior */
+    /* ZERA o preenchimento superior e lateral para caber no iframe */
     .block-container {
         padding-top: 0.5rem !important;
         padding-bottom: 0rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
         max-width: 100% !important;
     }
 
-    /* FUNDO BRANCO EM TUDO */
+    /* FUNDO BRANCO GERAL */
     html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
         background-color: #FFFFFF !important;
     }
 
-    /* AJUSTE DA CAIXA DE DIGITAÇÃO (Fundo Claro) */
+    /* AJUSTE DA CAIXA DE DIGITAÇÃO (CONTAINER) */
     [data-testid="stBottom"] > div {
         background-color: #FFFFFF !important;
+        padding-bottom: 10px !important;
     }
 
+    /* ESTILO DO INPUT DE TEXTO */
     [data-testid="stChatInput"] {
-        background-color: #F7F9FB !important; /* Cinza bem clarinho */
-        border-radius: 10px !important;
+        background-color: #F7F9FB !important; /* Cinza bem clarinho no fundo */
+        border-radius: 12px !important;
         border: 1px solid #E0E0E0 !important;
     }
 
-    /* FORÇAR COR DO TEXTO (Preto para ser visível no branco) */
-    /* Isso resolve o problema do passo a passo sumindo */
+    /* COR DO TEXTO DIGITADO (Preto) */
+    [data-testid="stChatInput"] textarea {
+        color: #31333F !important;
+    }
+
+    /* --- NOVO: COR DO PLACEHOLDER ("Como posso te ajudar?") --- */
+    /* Deixa o texto de exemplo cinza claro */
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #9CA3AF !important;
+        opacity: 1; /* Garante a cor em alguns navegadores */
+    }
+
+    /* FORÇAR COR DO TEXTO NAS MENSAGENS (Para não sumir no fundo branco) */
     [data-testid="stChatMessageContent"] p, 
     [data-testid="stChatMessageContent"] li, 
     [data-testid="stChatMessageContent"] ol {
@@ -51,7 +65,7 @@ st.markdown("""
 
     /* BALÕES DE CHAT */
     [data-testid="stChatMessage"] {
-        padding: 0.8rem !important;
+        padding: 0.7rem !important;
         margin-bottom: 0.5rem !important;
         border-radius: 12px;
         background-color: #F8F9FB !important;
@@ -59,43 +73,50 @@ st.markdown("""
     }
 
     /* CORES DOS ÍCONES (AVATARES) */
-    /* Usuário: Cinza | IA Evo: Azul GoEvo */
-    [data-testid="stChatMessageAvatarUser"] {
-        background-color: #808080 !important;
-    }
-    [data-testid="stChatMessageAvatarAssistant"] {
-        background-color: #004aad !important;
-    }
+    [data-testid="stChatMessageAvatarUser"] { background-color: #808080 !important; }
+    [data-testid="stChatMessageAvatarAssistant"] { background-color: #004aad !important; }
 
-    /* Centralização da Logo no Topo */
-    .stImage {
+    /* --- NOVO: ESTILO PARA A LOGO --- */
+    .logo-container {
         display: flex;
         justify-content: center;
-        margin-top: -10px;
-        padding-bottom: 10px;
+        align-items: center;
+        margin-top: 5px;
+        margin-bottom: 15px;
+    }
+    
+    /* Força a logo a ficar pequena */
+    .logo-container img {
+        max-width: 70px !important; /* Tamanho fixo pequeno */
+        height: auto !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Nome ajustado para o seu arquivo no Git) ---
-CAMINHO_LOGO = "logo-goevo.png" 
+# --- 3. Logo da GoEvo (Renderização via HTML para controle total) ---
+CAMINHO_LOGO = "logo-goevo.png"
 
-# Criamos colunas apenas para centralizar a imagem pequena no meio
-col1, col2, col3 = st.columns([1, 0.2, 1])
-with col2:
-    try:
-        st.image(CAMINHO_LOGO, width=80) # Logo bem pequena como solicitado
-    except:
-        st.write("") # Se der erro, não exibe nada
+# Verifica se o arquivo existe antes de tentar mostrar
+if os.path.exists(CAMINHO_LOGO):
+    st.markdown(f"""
+        <div class="logo-container">
+            <img src="{CAMINHO_LOGO}" alt="Logo GoEvo">
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    # Espaço vazio se a logo não carregar, para não quebrar o layout
+    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
+
 
 # --- 4. Configuração de APIs ---
 try:
+    # Tenta pegar dos secrets do Streamlit Cloud
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
     CHROMA_TENANT = st.secrets["CHROMA_TENANT"]
     CHROMA_DATABASE = st.secrets["CHROMA_DATABASE"]
-except:
-    st.error("Erro nas chaves de API.")
+except Exception:
+    st.error("Erro: Chaves de API não configuradas nos Secrets.")
     st.stop()
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -135,7 +156,7 @@ def buscar_contexto(pergunta, colecao):
     except: return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica."
+    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica e direta."
     try:
         res = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -154,15 +175,18 @@ colecao_func = carregar_colecao()
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
+# Renderiza as mensagens antigas
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]): st.markdown(msg["content"])
 
+# Input do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"): st.markdown(pergunta)
 
     with st.chat_message("assistant"):
-        with st.spinner("Analisando..."):
+        # Spinner mais discreto
+        with st.spinner("..."):
             intencao = rotear_pergunta(pergunta)
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
@@ -174,7 +198,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                     res_final = gerar_resposta(pergunta, ctx, nome_f)
                     if video: res_final += f"\n\n---\n**🎥 Tutorial:** [Clique aqui para assistir]({video})"
                 else:
-                    res_final = "Ainda não tenho o passo a passo para essa funcionalidade."
+                    res_final = "Desculpe, ainda não tenho o passo a passo para essa funcionalidade."
             
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
