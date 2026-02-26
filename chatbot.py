@@ -128,7 +128,7 @@ st.markdown("""
 
     /* Adiciona um espaço extra na rolagem para a última mensagem não ficar escondida atrás da caixa */
     .block-container {
-        padding-bottom: 90px !important;
+        padding-bottom: 105px !important;
     }
     
 </style>
@@ -273,6 +273,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
 
 
