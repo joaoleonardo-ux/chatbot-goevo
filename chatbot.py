@@ -1,13 +1,9 @@
 import streamlit as st
-
 import openai
-
 import chromadb
-
 import os
 
-
-
+# --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
 # --- 2. Injeção de CSS para Interface Customizada GoEvo ---
@@ -19,7 +15,7 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* 2. Remove badges e botão fullscreen (incluindo o Built with Streamlit do iframe) */
+    /* 2. Remove badges e botão fullscreen */
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
     .st-emotion-cache-1cvow4s {display: none !important;} /* Oculta o rodapé teimoso */
@@ -29,6 +25,9 @@ st.markdown("""
         background-color: #FFFFFF !important;
         border: 2px solid #0986D5 !important; /* Borda cor GoEvo */
         border-radius: 12px !important; /* Arredonda os cantos da tela */
+        height: calc(100vh - 45px) !important; /* FAZ A BORDA INFERIOR APARECER ACIMA DO CORTE */
+        min-height: calc(100vh - 45px) !important;
+        overflow: hidden !important;
     }
     [data-testid="stAppViewContainer"] {
         background-color: transparent !important;
@@ -37,7 +36,7 @@ st.markdown("""
     /* 4. ZERA o preenchimento e ajusta container */
     .block-container {
         padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
+        padding-bottom: 90px !important; /* Espaço para a rolagem não ficar atrás do input */
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
@@ -78,50 +77,48 @@ st.markdown("""
         padding-top: 0px !important;
     }
 
-    /* --- 8. AJUSTES DA CAIXA DE TEXTO (AZUL GOEVO) --- */
+    /* --- 8. AJUSTES DA CAIXA DE TEXTO (Input Branco com Borda Azul) --- */
     
-    /* Mantém o fundo branco para a área externa inferior inteira */
     [data-testid="stBottom"], 
     [data-testid="stBottomBlock"] > div {
-        background-color: #FFFFFF !important;
+        background-color: transparent !important;
     }
 
-    /* Pinta o bloco de input (onde era cinza) com a cor AZUL GOEVO */
+    /* Pinta o bloco de input de BRANCO com a BORDA AZUL GOEVO */
     [data-testid="stChatInput"] > div {
-        background-color: #0986D5 !important;
-        border: 1px solid #0986D5 !important;
-        border-radius: 10px !important; /* Arredonda a caixa de digitação */
+        background-color: #FFFFFF !important;
+        border: 2px solid #0986D5 !important;
+        border-radius: 10px !important;
     }
 
-    /* Ajuste do texto, fundo transparente, e ESPAÇAMENTO na esquerda */
+    /* Texto digitado PRETO e ajuste de margem esquerda */
     [data-testid="stChatInput"] textarea {
-        color: #FFFFFF !important; /* Letra branca para ler bem no azul */
+        color: #000000 !important; 
         background-color: transparent !important;
-        padding-left: 18px !important; /* Descola o texto da borda! */
+        padding-left: 12px !important; 
     }
 
-    /* Cor do placeholder ("Como posso te ajudar?") */
+    /* Cor do placeholder ("Como posso te ajudar?") para CINZA CLARO */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #E6F3FB !important; /* Um branco levemente azulado para ficar suave */
+        color: #999999 !important; 
     }
 
-    /* Cor da setinha de enviar (Branca para contrastar com o azul) */
+    /* Cor da setinha de enviar (Azul para combinar com a borda) */
     [data-testid="stChatInput"] button {
-        color: #FFFFFF !important;
+        color: #0986D5 !important;
         background-color: transparent !important;
     }
 
-   /* --- 9. COMPENSAÇÃO DO CORTE DO IFRAME --- */
+    /* --- 9. COMPENSAÇÃO DO CORTE DO IFRAME (Descer a caixa) --- */
     
-    /* Levanta a área de digitação (caixa azul) para ela escapar do corte */
-    [data-testid="stBottom"],
-    [data-testid="stBottomBlock"] {
-        bottom: 45px !important;
+    /* Mantém fora do corte do balão */
+    [data-testid="stBottom"] {
+        bottom: 45px !important; 
     }
-
-    /* Adiciona um espaço extra na rolagem para a última mensagem não ficar escondida atrás da caixa */
-    .block-container {
-        padding-bottom: 90px !important;
+    
+    /* Força a caixa de digitação a descer removendo a margem nativa do Streamlit */
+    [data-testid="stBottom"] > div {
+        padding-bottom: 8px !important;
     }
     
 </style>
@@ -137,9 +134,7 @@ with c2:
     else:
         st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
 
-
-
-# --- 3. Configuração de APIs ---
+# --- 4. Configuração de APIs ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
@@ -151,8 +146,7 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 4. Funções do Core do Chatbot ---
-
+# --- 5. Funções do Core do Chatbot ---
 @st.cache_resource
 def carregar_colecao():
     try:
@@ -239,8 +233,7 @@ def gerar_resposta(pergunta, contexto, nome_feature):
     except:
         return "Desculpe, tive um problema ao processar sua resposta. Pode tentar novamente?"
 
-# --- 5. Execução do Chat ---
-
+# --- 6. Execução do Chat ---
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
@@ -280,7 +273,3 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
-
-
-
