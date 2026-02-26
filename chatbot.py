@@ -30,10 +30,10 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* 4. ZERA o preenchimento e ajusta container */
+    /* 4. ZERA o preenchimento e ajusta container para remover o buraco em branco */
     .block-container {
         padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
+        padding-bottom: 50px !important; /* REDUZIDO de 90px para 50px para aproximar a mensagem da caixa */
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
@@ -97,7 +97,7 @@ st.markdown("""
         color: #000000 !important; 
         -webkit-text-fill-color: #000000 !important; /* Força o preto no Chrome */
         padding-left: 12px !important; 
-        border-radius: 20px !important;
+        border-radius: 6px !important;
     }
 
     /* COR FORÇADA PARA O PLACEHOLDER ("Como posso te ajudar?") = CINZA CLARO */
@@ -118,17 +118,13 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-   /* --- 9. COMPENSAÇÃO DO CORTE DO IFRAME --- */
+   /* --- 9. COMPENSAÇÃO DO CORTE DO IFRAME E ALINHAMENTO --- */
     
     /* Levanta a área de digitação (caixa azul) para ela escapar do corte */
     [data-testid="stBottom"],
     [data-testid="stBottomBlock"] {
-        bottom: 5px !important;
-    }
-
-    /* Adiciona um espaço extra na rolagem para a última mensagem não ficar escondida atrás da caixa */
-    .block-container {
-        padding-bottom: 105px !important;
+        bottom: 45px !important;
+        padding-top: 0px !important; /* Remove espaçamento invisível extra no topo da caixa */
     }
     
 </style>
@@ -273,8 +269,3 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
-
-
-
-
