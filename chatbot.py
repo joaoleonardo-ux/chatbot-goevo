@@ -10,24 +10,28 @@ import os
 
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa e Clara ---
+# --- 2. Injeção de CSS para Interface Customizada GoEvo ---
 st.markdown("""
 <style>
     /* 1. Esconde Header, Footer e Menus nativos */
     header {visibility: hidden; height: 0px !important;}
-    #MainMenu {visibility: hidden;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* 2. Remove badges, botão fullscreen e "Built with Streamlit" agressivamente */
+    /* 2. Remove badges e botão fullscreen (incluindo o Built with Streamlit do iframe) */
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
-    .st-emotion-cache-1cvow4s {display: none !important;} /* Classe comum do rodapé do iframe */
+    .st-emotion-cache-1cvow4s {display: none !important;} /* Oculta o rodapé teimoso */
 
-    /* 3. Força o fundo branco em toda a aplicação */
-    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    /* 3. Força fundo branco e ADICIONA A BORDA AZUL no chat inteiro */
+    .stApp {
         background-color: #FFFFFF !important;
+        border: 2px solid #0986D5 !important; /* Borda cor GoEvo */
+        border-radius: 12px !important; /* Arredonda os cantos da tela */
+    }
+    [data-testid="stAppViewContainer"] {
+        background-color: transparent !important;
     }
 
     /* 4. ZERA o preenchimento e ajusta container */
@@ -37,11 +41,10 @@ st.markdown("""
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
-        background-color: #FFFFFF !important;
     }
 
     /* 5. Ajuste global de fontes para PRETO */
-    html, body, [data-testid="stAppViewContainer"] {
+    html, body {
         font-size: 14px;
         color: #000000 !important;
     }
@@ -50,8 +53,9 @@ st.markdown("""
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
-        background-color: #F0F2F6 !important; /* Cinza bem leve para distinguir as bolhas */
+        background-color: #F0F2F6 !important; /* Cinza leve para as mensagens */
         color: #000000 !important;
+        border-radius: 8px !important;
     }
     
     /* Garante que o texto dentro do chat seja preto */
@@ -74,28 +78,37 @@ st.markdown("""
         padding-top: 0px !important;
     }
 
-    /* 8. AJUSTES DA CAIXA DE TEXTO E FUNDO INFERIOR (Onde o usuário digita) */
+    /* --- 8. AJUSTES DA CAIXA DE TEXTO (AZUL GOEVO) --- */
     
-    /* Fundo branco para a área fixa inferior inteira */
+    /* Mantém o fundo branco para a área externa inferior inteira */
     [data-testid="stBottom"], 
     [data-testid="stBottomBlock"] > div {
         background-color: #FFFFFF !important;
     }
 
-    /* Fundo branco para o container do input */
-    [data-testid="stChatInput"] {
-        background-color: #FFFFFF !important;
+    /* Pinta o bloco de input (onde era cinza) com a cor AZUL GOEVO */
+    [data-testid="stChatInput"] > div {
+        background-color: #0986D5 !important;
+        border: 1px solid #0986D5 !important;
+        border-radius: 10px !important; /* Arredonda a caixa de digitação */
     }
 
-    /* Texto preto e fundo branco dentro da área de digitação */
+    /* Ajuste do texto, fundo transparente, e ESPAÇAMENTO na esquerda */
     [data-testid="stChatInput"] textarea {
-        color: #000000 !important;
-        background-color: #FFFFFF !important;
+        color: #FFFFFF !important; /* Letra branca para ler bem no azul */
+        background-color: transparent !important;
+        padding-left: 18px !important; /* Descola o texto da borda! */
     }
 
-    /* Escurece o botão de enviar (setinha) para ele aparecer no fundo branco */
+    /* Cor do placeholder ("Como posso te ajudar?") */
+    [data-testid="stChatInput"] textarea::placeholder {
+        color: #E6F3FB !important; /* Um branco levemente azulado para ficar suave */
+    }
+
+    /* Cor da setinha de enviar (Branca para contrastar com o azul) */
     [data-testid="stChatInput"] button {
-        color: #000000 !important;
+        color: #FFFFFF !important;
+        background-color: transparent !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -253,3 +266,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
