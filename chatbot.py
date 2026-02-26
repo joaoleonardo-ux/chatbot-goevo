@@ -110,6 +110,36 @@ st.markdown("""
         color: #FFFFFF !important;
         background-color: transparent !important;
     }
+
+    /* --- 9. REMOVER RODAPÉ DO IFRAME (Built with Streamlit & Fullscreen) --- */
+    
+    /* Esconde a tag footer padrão */
+    footer {
+        display: none !important; 
+        visibility: hidden !important;
+    }
+    
+    /* Esconde a barra de metadados do embed pelas classes nativas do Streamlit */
+    div[class^="embeddedAppMetaInfoBar"] {
+        display: none !important; 
+        visibility: hidden !important;
+    }
+    div[class*="embeddedAppMetaInfoBar"] {
+        display: none !important; 
+        visibility: hidden !important;
+    }
+    
+    /* Caso a classe mude, ataca diretamente os elementos de dentro da barra */
+    a[href*="streamlit.io"] {
+        display: none !important;
+    }
+    button[title="View fullscreen"] {
+        display: none !important;
+    }
+    svg[title="Fullscreen"] {
+        display: none !important;
+    }
+    
 </style>
 """, unsafe_allow_html=True)
 
@@ -266,4 +296,5 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
