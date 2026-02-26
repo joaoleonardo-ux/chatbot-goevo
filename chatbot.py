@@ -181,10 +181,11 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                     ctx, video, nome_f = buscar_contexto_seguro(pergunta, colecao_func)
                     if ctx:
                         res_final = gerar_resposta(pergunta, ctx, nome_f)
-                        if video: res_final += f"\n\n---\n**🎥 Vídeo:** [Assista aqui]({video})"
+                        if video: res_final += f"\n\n---\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo detalhado: [Clique aqui para abrir o vídeo]({video})"
                     else:
                         res_final = "Não encontrei o procedimento exato para essa funcionalidade. Pode detalhar melhor sua dúvida?"
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
