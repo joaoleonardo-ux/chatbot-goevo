@@ -14,100 +14,74 @@ st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
 
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
-
+# --- 2. Injeção de CSS para Interface Totalmente Limpa e Clara ---
 st.markdown("""
-
 <style>
-
-    /* Esconde Header, Footer e Menus nativos */
-
+    /* 1. Esconde Header, Footer e Menus nativos */
     header {visibility: hidden; height: 0px !important;}
-
     footer {display: none !important;}
-
     [data-testid="stHeader"] {display: none !important;}
-
     [data-testid="stFooter"] {display: none !important;}
-
     
-
-    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
-
-    div[class*="container_1upux"] {display: none !important;}
-
+    /* 2. Remove badges e botões extras */
     div[class*="viewerBadge"] {display: none !important;}
-
     button[title="View fullscreen"] {display: none !important;}
 
+    /* 3. Força o fundo branco em toda a aplicação */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #FFFFFF !important;
+    }
 
-
-    /* ZERA o preenchimento superior para o chat começar do topo */
-
+    /* 4. ZERA o preenchimento e ajusta container */
     .block-container {
-
         padding-top: 0rem !important;
-
         padding-bottom: 0rem !important;
-
         padding-left: 1rem !important;
-
         padding-right: 1rem !important;
-
         max-width: 100% !important;
-
+        background-color: #FFFFFF !important;
     }
 
-
-
-    /* Ajuste global de fontes */
-
+    /* 5. Ajuste global de fontes para PRETO */
     html, body, [data-testid="stAppViewContainer"] {
-
         font-size: 14px;
-
-        background-color: transparent !important;
-
+        color: #000000 !important;
     }
 
-
-
-    /* Balões de chat compactos */
-
+    /* 6. Balões de chat: Fundo claro e texto preto */
     [data-testid="stChatMessage"] {
-
         padding: 0.5rem !important;
-
         margin-bottom: 0.5rem !important;
-
+        background-color: #F0F2F6 !important; /* Um cinza bem leve para distinguir as bolhas */
+        color: #000000 !important;
     }
-
     
-
-    [data-testid="stChatMessageContent"] p {
-
+    /* Garante que o texto dentro do chat seja preto */
+    [data-testid="stChatMessageContent"] p, 
+    [data-testid="stChatMessageContent"] li,
+    [data-testid="stChatMessageContent"] span {
         font-size: 0.95rem !important;
-
         line-height: 1.4 !important;
-
-        overflow-wrap: break-word;
-
+        color: #000000 !important;
     }
 
+    /* Ajusta a cor dos ícones de avatar (caso use os padrão do Streamlit) */
+    [data-testid="stChatMessage"] .st-emotion-cache-1p7n9v6 {
+        background-color: #E0E0E0 !important;
+    }
 
-
-    /* Remove padding extra do topo do chat */
-
+    /* 7. Remove padding extra do topo do chat */
     [data-testid="stVerticalBlock"] > div:first-child {
-
         margin-top: 0px !important;
-
         padding-top: 0px !important;
-
     }
 
+    /* 8. Ajuste específico para o Input de texto (barra de digitar) */
+    [data-testid="stChatInput"] textarea {
+        color: #000000 !important;
+        background-color: #FFFFFF !important;
+    }
 </style>
-
 """, unsafe_allow_html=True)
 
 
@@ -313,3 +287,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             st.markdown(res_final)
 
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
