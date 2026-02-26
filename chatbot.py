@@ -89,56 +89,107 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 4. Funções do Core ---
+# --- 4. Funções do Core do Chatbot ---
+
 @st.cache_resource
 def carregar_colecao():
     try:
-        _client = chromadb.CloudClient(api_key=CHROMA_API_KEY, tenant=CHROMA_TENANT, database=CHROMA_DATABASE)
+        _client = chromadb.CloudClient(
+            api_key=CHROMA_API_KEY, 
+            tenant=CHROMA_TENANT, 
+            database=CHROMA_DATABASE
+        )
         return _client.get_collection("colecao_funcionalidades")
-    except: return None
+    except Exception as e:
+        st.error(f"Erro ao conectar com a base ChromaDB: {e}")
+        return None
 
 def rotear_pergunta(pergunta):
+    """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        resp = client_openai.chat.completions.create(
+        # Ajustado para incluir a categoria AGRADECIMENTO
+        prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
+        resposta = client_openai.chat.completions.create(
             model="gpt-4o",
-            messages=[{"role": "user", "content": f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE: '{pergunta}'"}],
-            temperature=0, max_tokens=10
+            messages=[{"role": "user", "content": prompt_roteador}],
+            temperature=0, 
+            max_tokens=15
         )
-        return resp.choices[0].message.content.strip().upper()
-    except: return "SAUDACAO"
+        intencao = resposta.choices[0].message.content.strip().upper()
+        
+        if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
+        if "AGRADECIMENTO" in intencao: return "AGRADECIMENTO"
+        return "SAUDACAO"
+    except:
+        return "SAUDACAO"
 
 def buscar_contexto_seguro(pergunta, colecao):
     if colecao is None: return "", None, ""
     try:
-        emb = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small").data[0].embedding
-        res = colecao.query(query_embeddings=[emb], n_results=1)
-        if not res['metadatas'][0]: return "", None, ""
-        meta = res['metadatas'][0][0]
-        contexto = "\n\n".join([f.get('texto_original', '') for f in colecao.query(query_embeddings=[emb], where={"fonte": meta.get('fonte')}, n_results=15)['metadatas'][0]])
-        return contexto, meta.get('video_url'), meta.get('fonte')
-    except: return "", None, ""
+        emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
+        emb = emb_response.data[0].embedding
+        
+        res_topo = colecao.query(query_embeddings=[emb], n_results=1)
+        if not res_topo['metadatas'][0]:
+            return "", None, ""
+
+        meta_principal = res_topo['metadatas'][0][0]
+        fonte_alvo = meta_principal.get('fonte')
+        video_url = meta_principal.get('video_url')
+
+        res_completos = colecao.query(
+            query_embeddings=[emb], 
+            where={"fonte": fonte_alvo}, 
+            n_results=15
+        )
+        
+        fragmentos = res_completos.get('metadatas', [[]])[0]
+        contexto = "\n\n".join([f.get('texto_original', '') for f in fragmentos if f.get('texto_original')])
+        
+        return contexto, video_url, fonte_alvo
+    except Exception as e:
+        st.error(f"Erro na recuperação: {e}")
+        return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo... Responda: {nome_feature} Contexto: {contexto}"
+    """Sintetiza a resposta com temperatura 0 e regras rígidas de formatação."""
+    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
+    Sua missão é fornecer instruções idênticas e padronizadas.
+    
+    REGRAS DE OURO:
+    1. Comece sempre com: "Para realizar {nome_feature}, siga estes passos:"
+    2. Use estritamente listas numeradas para as ações.
+    3. Seja direto. Não peça informações adicionais se o contexto já permitir responder.
+    4. Não faça sugestões ou comentários fora do contexto fornecido.
+    5. Mantenha tom profissional e técnico.
+    6. Se o contexto não permitir responder, diga: "Não encontrei o procedimento exato na base de conhecimento." """
+
     try:
-        resp = client_openai.chat.completions.create(model="gpt-4o", messages=[{"role": "system", "content": prompt}, {"role": "user", "content": pergunta}], temperature=0)
-        return resp.choices[0].message.content
-    except: return "Erro ao processar."
+        resposta = client_openai.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt_sistema}, 
+                {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}
+            ],
+            temperature=0
+        )
+        return resposta.choices[0].message.content
+    except:
+        return "Desculpe, tive um problema ao processar sua resposta. Pode tentar novamente?"
 
 # --- 5. Execução do Chat ---
 
-LOGO_IA = "logo-goevo.png"
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar hoje?"
-RES_AGRADECIMENTO = "De nada! 😊"
+RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
+RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
+# Inicializa histórico
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
 # Renderiza histórico
 for msg in st.session_state.messages:
-    avatar = LOGO_IA if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar):
+    with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # Entrada do usuário
@@ -147,21 +198,23 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
     with st.chat_message("user"):
         st.markdown(pergunta)
 
-    # Resposta da IA
-    with st.chat_message("assistant", avatar=LOGO_IA):
+    with st.chat_message("assistant"):
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
-            if "AGRADECIMENTO" in intencao: 
+            
+            # Lógica de resposta baseada na intenção
+            if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
-            elif "SAUDACAO" in intencao: 
+            elif intencao == "SAUDACAO":
                 res_final = RES_SAUDACAO
             else:
                 ctx, video, nome_f = buscar_contexto_seguro(pergunta, colecao_func)
                 if ctx:
                     res_final = gerar_resposta(pergunta, ctx, nome_f)
-                    if video: res_final += f"\n\n---\n**🎥 Vídeo:** [Abrir]({video})"
-                else: 
-                    res_final = "Não encontrei essa funcionalidade."
+                    if video:
+                        res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo detalhado: [Clique aqui para abrir o vídeo]({video})"
+                else:
+                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
