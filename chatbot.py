@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface e Cores de Ícones ---
+# --- 2. Injeção de CSS para Interface Totalmente Limpa e Personalizada ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -15,49 +15,49 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* Cores dos Ícones */
+    /* BORDA EM VOLTA DO CHAT (Cor GoEvo #0882C8) */
+    [data-testid="stChatMessage"] {
+        border: 1px solid #0882C8;
+        border-radius: 10px;
+        padding: 0.5rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+
+    /* Cores dos Ícones (Avatares) */
     /* Usuário: Cinza Claro */
-    [data-testid="stChatMessageAvatarUser"] {
+    [data-testid="stChatMessage"][data-testid="stChatMessageUser"] div[data-testid="stChatMessageAvatar"] {
         background-color: #D3D3D3 !important;
         color: white !important;
     }
-
-    /* Assistente (IA): Azul GoEvo #1786D4 */
-    [data-testid="stChatMessageAvatarAssistant"] {
-        background-color: #1786D4 !important;
+    
+    /* IA (Assistant): Azul GoEvo #0882C8 */
+    [data-testid="stChatMessage"][data-testid="stChatMessageAssistant"] div[data-testid="stChatMessageAvatar"] {
+        background-color: #0882C8 !important;
         color: white !important;
     }
 
-    /* ZERA o preenchimento superior para o chat começar do topo */
+    /* Ajustes de Layout e Fontes */
     .block-container {
-        padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-top: 1rem !important;
+        padding-bottom: 5rem !important;
+        padding-left: 5% !important;
+        padding-right: 5% !important;
         max-width: 100% !important;
     }
 
-    /* Ajuste global de fontes */
     html, body, [data-testid="stAppViewContainer"] {
         font-size: 14px;
-        background-color: transparent !important;
     }
 
-    /* Balões de chat compactos */
-    [data-testid="stChatMessage"] {
-        padding: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
-    }
-    
     [data-testid="stChatMessageContent"] p {
         font-size: 0.95rem !important;
         line-height: 1.4 !important;
-        overflow-wrap: break-word;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Configuração de APIs (Mantido igual) ---
+# --- 3. Configuração de APIs ---
+# (Mantido igual ao seu código original)
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
@@ -69,7 +69,8 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 4. Funções do Core (Mantidas iguais) ---
+# --- 4. Funções do Core do Chatbot ---
+# (Mantidas iguais ao seu código original: carregar_colecao, rotear_pergunta, buscar_contexto_seguro, gerar_resposta)
 @st.cache_resource
 def carregar_colecao():
     try:
@@ -118,7 +119,9 @@ def buscar_contexto_seguro(pergunta, colecao):
         return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. Siga as REGRAS DE OURO: 1. Comece com: 'Para realizar {nome_feature}, siga estes passos:' 2. Use listas numeradas. 3. Seja direto. 4. Sem comentários extras. 5. Tom profissional. 6. Se não souber, diga: 'Não encontrei o procedimento exato'."""
+    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
+    Sua missão é fornecer instruções idênticas e padronizadas.
+    REGRAS: 1. Comece com: 'Para realizar {nome_feature}, siga estes passos:' 2. Use listas numeradas. 3. Seja direto."""
     try:
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -131,6 +134,10 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 
 # --- 5. Execução do Chat ---
 
+# Definição dos Ícones
+ICON_USER = "👤" 
+ICON_AI = "✨" # Você pode trocar por uma URL de imagem da GoEvo se preferir
+
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
@@ -138,22 +145,23 @@ colecao_func = carregar_colecao()
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza histórico (Alterado para incluir o avatar de nuvem ☁️)
+# Renderiza histórico com ícones específicos
 for msg in st.session_state.messages:
-    avatar = "☁️" if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar):
+    # Define qual ícone usar baseado na role
+    icon = ICON_USER if msg["role"] == "user" else ICON_AI
+    with st.chat_message(msg["role"], avatar=icon):
         st.markdown(msg["content"])
 
 # Entrada do usuário
 if pergunta := st.chat_input("Como posso te ajudar?"):
     st.session_state.messages.append({"role": "user", "content": pergunta})
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=ICON_USER):
         st.markdown(pergunta)
 
-    # Resposta da IA (Alterado para incluir o avatar de nuvem ☁️)
-    with st.chat_message("assistant", avatar="☁️"):
+    with st.chat_message("assistant", avatar=ICON_AI):
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
+            
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
             elif intencao == "SAUDACAO":
@@ -165,7 +173,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                     if video:
                         res_final += f"\n\n---\n\n**🎥 Vídeo explicativo:**\nAssista ao passo a passo detalhado: [Clique aqui para abrir o vídeo]({video})"
                 else:
-                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade. Pode detalhar melhor sua dúvida?"
+                    res_final = "Ainda não encontrei um passo a passo para essa funcionalidade."
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
