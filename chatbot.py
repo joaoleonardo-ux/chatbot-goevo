@@ -111,32 +111,27 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* --- 9. REMOVER RODAPÉ DO IFRAME (Built with Streamlit & Fullscreen) --- */
+   /* --- 9. REMOVER RODAPÉ DO IFRAME (Estratégia Definitiva) --- */
     
-    /* Esconde a tag footer padrão */
     footer {
         display: none !important; 
         visibility: hidden !important;
     }
     
-    /* Esconde a barra de metadados do embed pelas classes nativas do Streamlit */
-    div[class^="embeddedAppMetaInfoBar"] {
-        display: none !important; 
-        visibility: hidden !important;
-    }
-    div[class*="embeddedAppMetaInfoBar"] {
-        display: none !important; 
+    /* Caça e destrói qualquer div que contenha o link do Streamlit */
+    div:has(> a[href*="streamlit.io"]) {
+        display: none !important;
         visibility: hidden !important;
     }
     
-    /* Caso a classe mude, ataca diretamente os elementos de dentro da barra */
-    a[href*="streamlit.io"] {
+    /* Caça e destrói qualquer div que contenha o botão de Fullscreen */
+    div:has(> button[title="View fullscreen"]) {
         display: none !important;
+        visibility: hidden !important;
     }
-    button[title="View fullscreen"] {
-        display: none !important;
-    }
-    svg[title="Fullscreen"] {
+    
+    /* Regra de segurança extra para garantir que só sobre o chat na tela */
+    div[data-testid="stApp"] > div:last-child:not([data-testid="stAppViewContainer"]) {
         display: none !important;
     }
     
@@ -296,5 +291,6 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
 
