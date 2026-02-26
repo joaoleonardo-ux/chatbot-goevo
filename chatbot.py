@@ -107,7 +107,6 @@ def carregar_colecao():
 def rotear_pergunta(pergunta):
     """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        # Ajustado para incluir a categoria AGRADECIMENTO
         prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -179,6 +178,7 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 
 # --- 5. Execução do Chat ---
 
+LOGO_IA = "logo-goevo.png"  # Definição do ícone da IA
 RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
@@ -189,7 +189,9 @@ if "messages" not in st.session_state:
 
 # Renderiza histórico
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    # Aplica o logo se for assistente
+    avatar = LOGO_IA if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
 # Entrada do usuário
@@ -198,7 +200,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
     with st.chat_message("user"):
         st.markdown(pergunta)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=LOGO_IA): # Aplica o logo na nova resposta
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
             
@@ -218,4 +220,3 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
