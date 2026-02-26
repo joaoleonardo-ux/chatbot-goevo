@@ -6,10 +6,9 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Com os ajustes de cor solicitados) ---
 st.markdown("""
 <style>
-    /* Ocultar cabeçalhos e rodapés do Streamlit */
+    /* Ocultar cabeçalhos e rodapés */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
@@ -27,37 +26,40 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* === AJUSTE DE CORES DO INPUT (SOLICITADO) === */
+    /* === AJUSTE DE CORES DO INPUT E BOTÃO === */
     
-    /* 1. Altera a cor da borda do campo quando selecionado (foco) */
+    /* 1. Borda do campo quando selecionado */
     [data-testid="stChatInput"] div:focus-within {
         border-color: #0882c8 !important;
     }
 
-    /* 2. Altera a cor da seta (ícone de envio) */
-    [data-testid="stChatInput"] button svg {
-        color: #0882c8 !important;
+    /* 2. Cor do botão de envio QUANDO ESTÁ ATIVO (ao digitar) */
+    [data-testid="stChatInput"] button {
+        background-color: #0882c8 !important;
+        border: none !important;
     }
 
-    /* 3. Garante que o cursor de digitação também acompanhe o azul */
+    /* 3. Cor da seta dentro do botão quando ativo */
+    [data-testid="stChatInput"] button svg {
+        color: white !important; /* Seta branca sobre o fundo azul */
+    }
+
+    /* 4. Cor do cursor de digitação */
     [data-testid="stChatInput"] textarea {
         caret-color: #0882c8 !important;
     }
     
     /* ============================================= */
 
-    /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
     }
 
-    /* Ícone do Usuário: Cinza Claro */
     div[data-testid="stChatMessageAvatarUser"] {
         background-color: #D3D3D3 !important;
     }
 
-    /* Ajuste para o logo da IA aparecer limpo */
     div[data-testid="stChatMessageAvatarAssistant"] {
         background-color: transparent !important;
     }
@@ -163,3 +165,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
