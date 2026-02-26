@@ -123,7 +123,7 @@ st.markdown("""
     /* Levanta a área de digitação (caixa azul) para ela escapar do corte */
     [data-testid="stBottom"],
     [data-testid="stBottomBlock"] {
-        bottom: 45px !important;
+        bottom: 65px !important;
     }
 
     /* Adiciona um espaço extra na rolagem para a última mensagem não ficar escondida atrás da caixa */
@@ -273,3 +273,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
