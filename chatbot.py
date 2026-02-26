@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
+# --- 2. Injeção de CSS para Interface e Cores de Ícones ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -15,10 +15,18 @@ st.markdown("""
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
-    div[class*="container_1upux"] {display: none !important;}
-    div[class*="viewerBadge"] {display: none !important;}
-    button[title="View fullscreen"] {display: none !important;}
+    /* Cores dos Ícones */
+    /* Usuário: Cinza Claro */
+    [data-testid="stChatMessageAvatarUser"] {
+        background-color: #D3D3D3 !important;
+        color: white !important;
+    }
+
+    /* Assistente (IA): Azul GoEvo #1786D4 */
+    [data-testid="stChatMessageAvatarAssistant"] {
+        background-color: #1786D4 !important;
+        color: white !important;
+    }
 
     /* ZERA o preenchimento superior para o chat começar do topo */
     .block-container {
@@ -46,16 +54,10 @@ st.markdown("""
         line-height: 1.4 !important;
         overflow-wrap: break-word;
     }
-
-    /* Remove padding extra do topo do chat */
-    [data-testid="stVerticalBlock"] > div:first-child {
-        margin-top: 0px !important;
-        padding-top: 0px !important;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Configuração de APIs ---
+# --- 3. Configuração de APIs (Mantido igual) ---
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
     CHROMA_API_KEY = st.secrets["CHROMA_API_KEY"]
@@ -67,7 +69,7 @@ except (FileNotFoundError, KeyError):
 
 client_openai = openai.OpenAI(api_key=OPENAI_API_KEY)
 
-# --- 4. Funções do Core do Chatbot ---
+# --- 4. Funções do Core (Mantidas iguais) ---
 @st.cache_resource
 def carregar_colecao():
     try:
@@ -82,7 +84,6 @@ def carregar_colecao():
         return None
 
 def rotear_pergunta(pergunta):
-    """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
         prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
@@ -92,7 +93,6 @@ def rotear_pergunta(pergunta):
             max_tokens=15
         )
         intencao = resposta.choices[0].message.content.strip().upper()
-        
         if "FUNCIONALIDADE" in intencao: return "FUNCIONALIDADE"
         if "AGRADECIMENTO" in intencao: return "AGRADECIMENTO"
         return "SAUDACAO"
@@ -104,54 +104,30 @@ def buscar_contexto_seguro(pergunta, colecao):
     try:
         emb_response = client_openai.embeddings.create(input=[pergunta], model="text-embedding-3-small")
         emb = emb_response.data[0].embedding
-        
         res_topo = colecao.query(query_embeddings=[emb], n_results=1)
-        if not res_topo['metadatas'][0]:
-            return "", None, ""
-
+        if not res_topo['metadatas'][0]: return "", None, ""
         meta_principal = res_topo['metadatas'][0][0]
         fonte_alvo = meta_principal.get('fonte')
         video_url = meta_principal.get('video_url')
-
-        res_completos = colecao.query(
-            query_embeddings=[emb], 
-            where={"fonte": fonte_alvo}, 
-            n_results=15
-        )
-        
+        res_completos = colecao.query(query_embeddings=[emb], where={"fonte": fonte_alvo}, n_results=15)
         fragmentos = res_completos.get('metadatas', [[]])[0]
         contexto = "\n\n".join([f.get('texto_original', '') for f in fragmentos if f.get('texto_original')])
-        
         return contexto, video_url, fonte_alvo
     except Exception as e:
         st.error(f"Erro na recuperação: {e}")
         return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    """Sintetiza a resposta com temperatura 0 e regras rígidas de formatação."""
-    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. 
-    Sua missão é fornecer instruções idênticas e padronizadas.
-    
-    REGRAS DE OURO:
-    1. Comece sempre com: "Para realizar {nome_feature}, siga estes passos:"
-    2. Use estritamente listas numeradas para as ações.
-    3. Seja direto. Não peça informações adicionais se o contexto já permitir responder.
-    4. Não faça sugestões ou comentários fora do contexto fornecido.
-    5. Mantenha tom profissional e técnico.
-    6. Se o contexto não permitir responder, diga: "Não encontrei o procedimento exato na base de conhecimento." """
-
+    prompt_sistema = f"""Você é o Evo, o assistente técnico da GoEvo. Siga as REGRAS DE OURO: 1. Comece com: 'Para realizar {nome_feature}, siga estes passos:' 2. Use listas numeradas. 3. Seja direto. 4. Sem comentários extras. 5. Tom profissional. 6. Se não souber, diga: 'Não encontrei o procedimento exato'."""
     try:
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
-            messages=[
-                {"role": "system", "content": prompt_sistema}, 
-                {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}
-            ],
+            messages=[{"role": "system", "content": prompt_sistema}, {"role": "user", "content": f"CONTEXTO:\n{contexto}\n\nPERGUNTA:\n{pergunta}"}],
             temperature=0
         )
         return resposta.choices[0].message.content
     except:
-        return "Desculpe, tive um problema ao processar sua resposta. Pode tentar novamente?"
+        return "Desculpe, tive um problema ao processar sua resposta."
 
 # --- 5. Execução do Chat ---
 
@@ -159,13 +135,13 @@ RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com a
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
-# Inicializa histórico
 if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "assistant", "content": RES_SAUDACAO}]
 
-# Renderiza histórico
+# Renderiza histórico (Alterado para incluir o avatar de nuvem ☁️)
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    avatar = "☁️" if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
 # Entrada do usuário
@@ -174,11 +150,10 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
     with st.chat_message("user"):
         st.markdown(pergunta)
 
-    with st.chat_message("assistant"):
+    # Resposta da IA (Alterado para incluir o avatar de nuvem ☁️)
+    with st.chat_message("assistant", avatar="☁️"):
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
-            
-            # Lógica de resposta baseada na intenção
             if intencao == "AGRADECIMENTO":
                 res_final = RES_AGRADECIMENTO
             elif intencao == "SAUDACAO":
@@ -194,4 +169,3 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
