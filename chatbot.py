@@ -250,7 +250,7 @@ for msg in st.session_state.messages:
 
 
 
-if pergunta := st.chat_input("Como posso te ajudar?"):
+if pergunta := st.chat_input(" Como posso te ajudar?"):
 
     st.session_state.messages.append({"role": "user", "content": pergunta})
 
@@ -291,5 +291,6 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             st.markdown(res_final)
 
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
 
