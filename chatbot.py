@@ -74,34 +74,45 @@ st.markdown("""
         padding-top: 0px !important;
     }
 
-    /* --- 8. AJUSTES DA CAIXA DE TEXTO (AZUL GOEVO) --- */
+    /* --- 8. AJUSTES DA CAIXA DE TEXTO (Fundo Branco, Placeholder Cinza) --- */
     
-    /* Mantém o fundo branco para a área externa inferior inteira */
+    /* Área externa inferior inteira */
     [data-testid="stBottom"], 
     [data-testid="stBottomBlock"] > div {
-        background-color: #FFFFFF !important;
+        background-color: transparent !important;
     }
 
-    /* Pinta o bloco de input (onde era cinza) com a cor AZUL GOEVO */
+    /* Pinta a moldura externa do input com a cor AZUL GOEVO */
     [data-testid="stChatInput"] > div {
         background-color: #0986D5 !important;
         border: 1px solid #0986D5 !important;
-        border-radius: 10px !important; /* Arredonda a caixa de digitação */
+        border-radius: 10px !important; 
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
     }
 
-    /* Ajuste do texto, fundo transparente, e ESPAÇAMENTO na esquerda */
+    /* Fundo branco e texto preto na área onde o usuário digita */
     [data-testid="stChatInput"] textarea {
-        color: #FFFFFF !important; /* Letra branca para ler bem no azul */
-        background-color: transparent !important;
-        padding-left: 18px !important; /* Descola o texto da borda! */
+        background-color: #FFFFFF !important; 
+        color: #000000 !important; 
+        -webkit-text-fill-color: #000000 !important; /* Força o preto no Chrome */
+        padding-left: 12px !important; 
+        border-radius: 6px !important;
     }
 
-    /* Cor do placeholder ("Como posso te ajudar?") */
+    /* COR FORÇADA PARA O PLACEHOLDER ("Como posso te ajudar?") = CINZA CLARO */
     [data-testid="stChatInput"] textarea::placeholder {
-        color: #E6F3FB !important; /* Um branco levemente azulado para ficar suave */
+        color: #888888 !important; 
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
+    }
+    [data-testid="stChatInput"] textarea::-webkit-input-placeholder {
+        color: #888888 !important; 
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
     }
 
-    /* Cor da setinha de enviar (Branca para contrastar com o azul) */
+    /* Cor da setinha de enviar (Branca para contrastar com a moldura azul) */
     [data-testid="stChatInput"] button {
         color: #FFFFFF !important;
         background-color: transparent !important;
@@ -152,7 +163,6 @@ def carregar_colecao():
 def rotear_pergunta(pergunta):
     """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        # Ajustado para incluir a categoria AGRADECIMENTO
         prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
