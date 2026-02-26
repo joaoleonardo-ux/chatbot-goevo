@@ -30,7 +30,27 @@ st.markdown("""
 
     [data-testid="stFooter"] {display: none !important;}
 
+    /* Balões de chat compactos */
+    [data-testid="stChatMessage"] {
+        padding: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    /* COR DO ÍCONE DO USUÁRIO */
+    div[data-testid="stChatMessageAvatarUser"] {
+        background-color: #D3D3D3 !important;
+    }
+
+    /* COR DO ÍCONE DA IA (EVO) */
+    div[data-testid="stChatMessageAvatarAssistant"] {
+        background-color: #0882c8 !important;
+    }
     
+    [data-testid="stChatMessageContent"] p {
+        font-size: 0.95rem !important;
+        line-height: 1.4 !important;
+        overflow-wrap: break-word;
+    }
 
     /* Remove a barra de rodapé e o badge "Built with Streamlit" */
 
@@ -389,3 +409,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             st.markdown(res_final)
 
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
