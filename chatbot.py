@@ -25,9 +25,8 @@ st.markdown("""
         background-color: #FFFFFF !important;
         border: 2px solid #0986D5 !important;
         border-radius: 12px !important;
-        /* box-sizing garante que a borda seja desenhada PARA DENTRO da tela, impedindo que seja cortada */
         box-sizing: border-box !important; 
-        height: calc(100vh - 45px) !important; 
+        height: calc(100vh - 45px) !important; /* Limita a borda acima do corte do iframe */
         min-height: calc(100vh - 45px) !important;
         overflow: hidden !important;
     }
@@ -96,17 +95,15 @@ st.markdown("""
         padding-left: 12px !important; 
     }
 
-    /* COMANDOS FORÇADOS PARA A COR DO PLACEHOLDER APARECER (Cinza Claro) */
-    [data-testid="stChatInput"] textarea::-webkit-input-placeholder {
+    /* REGRAS ABSOLUTAS PARA FORÇAR O PLACEHOLDER A FICAR CINZA CLARO */
+    div[data-testid="stChatInput"] textarea::placeholder {
         color: #888888 !important; 
+        -webkit-text-fill-color: #888888 !important;
         opacity: 1 !important;
     }
-    [data-testid="stChatInput"] textarea::-moz-placeholder {
+    div[data-testid="stChatInput"] textarea::-webkit-input-placeholder {
         color: #888888 !important; 
-        opacity: 1 !important;
-    }
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #888888 !important; 
+        -webkit-text-fill-color: #888888 !important;
         opacity: 1 !important;
     }
 
@@ -117,13 +114,13 @@ st.markdown("""
 
     /* --- 9. DESCENDO A CAIXA DE DIGITAÇÃO --- */
     
-    /* Diminuímos de 45px para 20px para a caixa ficar bem próxima ao fundo */
+    /* Matemática do layout: 45px do corte do JS + 15px de margem visual = 60px */
     [data-testid="stBottom"] {
-        bottom: 20px !important; 
+        bottom: 60px !important; 
     }
     
     [data-testid="stBottom"] > div {
-        padding-bottom: 0px !important; /* Zera margem invisível nativa */
+        padding-bottom: 0px !important; /* Remove espaçamento invisível do Streamlit */
     }
     
 </style>
@@ -132,12 +129,12 @@ st.markdown("""
 # --- 3. Logo da GoEvo (Ajustada e Centralizada) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Mudamos a proporção para focar exatamente no meio
-c1, c2, c3 = st.columns([1, 1, 1])
+# Coluna do meio dimensionada (0.4) para segurar a logo num tamanho excelente
+c1, c2, c3 = st.columns([1, 0.4, 1])
 with c2:
     if os.path.exists(CAMINHO_LOGO):
-        # Aumentamos o width para 130 para dar destaque à imagem 256x256
-        st.image(CAMINHO_LOGO, width=130)
+        # use_container_width força a imagem a respeitar a proporção da coluna sem virar um "pontinho"
+        st.image(CAMINHO_LOGO, use_container_width=True)
     else:
         st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
 
