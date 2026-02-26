@@ -125,7 +125,7 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 # --- 4. Execução do Chat ---
 
 LOGO_IA = "logo-goevo.png" 
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar hoje?"
+RES_SAUDACAO = "Olá! Eu sou o Evo. Como posso te ajudar hoje?"
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. 😊"
 colecao_func = carregar_colecao()
 
@@ -187,3 +187,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
