@@ -6,67 +6,51 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS (Reseta Rodapé, Centraliza Logo e Ajusta Cores) ---
+# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
 st.markdown("""
 <style>
-    /* Esconde elementos nativos */
-    header, footer, [data-testid="stHeader"] {display: none !important;}
+    /* Esconde Header, Footer e Menus nativos */
+    header {visibility: hidden; height: 0px !important;}
+    footer {display: none !important;}
+    [data-testid="stHeader"] {display: none !important;}
+    [data-testid="stFooter"] {display: none !important;}
     
-    /* 1. RESET DE FUNDO (Resolve o problema do escuro) */
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
-        background-color: #FFFFFF !important;
+    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
+    div[class*="container_1upux"] {display: none !important;}
+    div[class*="viewerBadge"] {display: none !important;}
+    button[title="View fullscreen"] {display: none !important;}
+
+    /* ZERA o preenchimento superior para o chat começar do topo */
+    .block-container {
+        padding-top: 0rem !important;
+        padding-bottom: 0rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        max-width: 100% !important;
     }
 
-    /* 2. AJUSTE DO RODAPÉ (Diminui a sessão e muda a cor) */
-    [data-testid="stBottom"] > div {
-        background-color: #FFFFFF !important;
-        padding-bottom: 15px !important;
-        padding-top: 0px !important;
+    /* Ajuste global de fontes */
+    html, body, [data-testid="stAppViewContainer"] {
+        font-size: 14px;
+        background-color: transparent !important;
     }
 
-    [data-testid="stChatInput"] {
-        background-color: #F7F9FB !important;
-        border-radius: 10px !important;
-        border: 1px solid #E0E0E0 !important;
-    }
-
-    /* Placeholder ("Como posso te ajudar?") cinza claro */
-    [data-testid="stChatInput"] textarea::placeholder {
-        color: #D1D5DB !important;
-    }
-
-    /* 3. VISIBILIDADE DO TEXTO (Resolve o passo a passo invisível) */
-    [data-testid="stChatMessageContent"] p, 
-    [data-testid="stChatMessageContent"] li, 
-    [data-testid="stChatMessageContent"] ol {
-        color: #31333F !important;
-        font-size: 0.95rem !important;
-        line-height: 1.5 !important;
-    }
-
-    /* 4. BALÕES DE CHAT COMPACTOS */
+    /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
-        border-radius: 12px;
-        background-color: #F8F9FB !important;
-        border: 1px solid #F0F2F6;
-    }
-
-    /* 5. CORES DOS ÍCONES (AVATARES) */
-    [data-testid="stChatMessageAvatarUser"] { background-color: #808080 !important; }
-    [data-testid="stChatMessageAvatarAssistant"] { background-color: #0986D5 !important; }
-
-    /* 6. FORÇAR CENTRALIZAÇÃO DA LOGO NO CONTEINER */
-    [data-testid="stImage"] img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
     }
     
-    .block-container {
-        padding-top: 0.5rem !important;
-        padding-bottom: 0rem !important;
+    [data-testid="stChatMessageContent"] p {
+        font-size: 0.95rem !important;
+        line-height: 1.4 !important;
+        overflow-wrap: break-word;
+    }
+
+    /* Remove padding extra do topo do chat */
+    [data-testid="stVerticalBlock"] > div:first-child {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -172,3 +156,4 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
