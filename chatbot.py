@@ -6,7 +6,7 @@ import os
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
+# --- 2. Injeção de CSS para Interface Branca e Limpa ---
 st.markdown("""
 <style>
     /* Esconde Header, Footer e Menus nativos */
@@ -20,51 +20,78 @@ st.markdown("""
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
 
-    /* ZERA o preenchimento superior para o chat começar do topo */
+    /* FORÇA O FUNDO BRANCO EM TODA A APLICAÇÃO */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stBottom"] {
+        background-color: #FFFFFF !important;
+    }
+
+    /* ZERA o preenchimento superior */
     .block-container {
-        padding-top: 0rem !important;
+        padding-top: 0.5rem !important;
         padding-bottom: 0rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
         max-width: 100% !important;
     }
 
-    /* Ajuste global de fontes */
-    html, body, [data-testid="stAppViewContainer"] {
+    /* Ajuste global de fontes e cores de texto para fundo claro */
+    [data-testid="stAppViewContainer"] {
         font-size: 14px;
-        background-color: transparent !important;
+        color: #31333F !important;
     }
 
     /* Balões de chat compactos */
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
+        background-color: #F8F9FB !important; /* Leve contraste para as mensagens */
+        border: 1px solid #F0F2F6;
+        border-radius: 12px;
     }
     
     [data-testid="stChatMessageContent"] p {
+        color: #31333F !important;
         font-size: 0.95rem !important;
         line-height: 1.4 !important;
         overflow-wrap: break-word;
     }
 
-    /* Remove padding extra do topo do chat */
-    [data-testid="stVerticalBlock"] > div:first-child {
-        margin-top: 0px !important;
-        padding-top: 0px !important;
+    /* Estilização da caixa de entrada para combinar com fundo branco */
+    [data-testid="stChatInput"] {
+        background-color: #FFFFFF !important;
+        border-radius: 10px !important;
+        border: 1px solid #E0E0E0 !important;
+    }
+
+    /* CSS para centralizar a logo via HTML */
+    .logo-header {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 10px 0;
+        width: 100%;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. Logo da GoEvo (Centralização via Colunas) ---
+# --- 3. Logo da GoEvo (Centralização Absoluta) ---
 CAMINHO_LOGO = "logo-goevo.png"
 
-# Criamos 3 colunas: a do meio é onde a logo fica "presa" centralizada
-c1, c2, c3 = st.columns([1, 0.3, 1])
-with c2:
-    if os.path.exists(CAMINHO_LOGO):
-        st.image(CAMINHO_LOGO, width=65) # Tamanho pequeno e centralizado
-    else:
-        st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
+if os.path.exists(CAMINHO_LOGO):
+    # Usando HTML para garantir centralização precisa
+    st.markdown(
+        f"""
+        <div class="logo-header">
+            <img src="data:image/png;base64,{st.image(CAMINHO_LOGO).container}" width="65">
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+    # Nota: No Streamlit Cloud, o método acima pode variar. 
+    # Se a logo sumir, use o comando st.image padrão dentro de colunas balanceadas:
+    st.columns([1, 1, 1])[1].image(CAMINHO_LOGO, width=65)
+else:
+    st.markdown('<div style="height: 20px;"></div>', unsafe_allow_html=True)
 
 # --- 4. Configuração de APIs ---
 try:
@@ -113,7 +140,7 @@ def buscar_contexto(pergunta, colecao):
     except: return "", None, ""
 
 def gerar_resposta(pergunta, contexto, nome_feature):
-    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de lista numerada."
+    prompt = f"Você é o Evo. Responda: 'Para realizar {nome_feature}, siga estes passos:' seguido de uma lista numerada técnica."
     try:
         res = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -125,8 +152,8 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 
 # --- 6. Fluxo do Chat ---
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar?"
-RES_AGRADECIMENTO = "De nada! Se precisar de algo mais, é só chamar! 😊"
+RES_SAUDACAO = "Olá! Eu sou o Evo, suporte inteligente da GoEvo. Como posso ajudar você hoje?"
+RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se precisar de algo mais, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
 if "messages" not in st.session_state:
@@ -152,8 +179,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
                     res_final = gerar_resposta(pergunta, ctx, nome_f)
                     if video: res_final += f"\n\n---\n**🎥 Tutorial:** [Clique aqui]({video})"
                 else:
-                    res_final = "Ainda não tenho esse passo a passo."
+                    res_final = "Ainda não tenho o passo a passo para essa funcionalidade."
             
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
-
