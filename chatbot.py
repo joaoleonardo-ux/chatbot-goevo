@@ -97,7 +97,7 @@ st.markdown("""
         color: #000000 !important; 
         -webkit-text-fill-color: #000000 !important; /* Força o preto no Chrome */
         padding-left: 12px !important; 
-        border-radius: 6px !important;
+        border-radius: 20px !important;
     }
 
     /* COR FORÇADA PARA O PLACEHOLDER ("Como posso te ajudar?") = CINZA CLARO */
@@ -273,6 +273,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
 
 
