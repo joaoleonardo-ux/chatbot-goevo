@@ -8,24 +8,22 @@ import os
 
 
 
-# --- 1. Configuração da Página ---
-
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
-
-
 
 # --- 2. Injeção de CSS para Interface Totalmente Limpa e Clara ---
 st.markdown("""
 <style>
     /* 1. Esconde Header, Footer e Menus nativos */
     header {visibility: hidden; height: 0px !important;}
+    #MainMenu {visibility: hidden;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
     [data-testid="stFooter"] {display: none !important;}
     
-    /* 2. Remove badges e botões extras */
+    /* 2. Remove badges, botão fullscreen e "Built with Streamlit" agressivamente */
     div[class*="viewerBadge"] {display: none !important;}
     button[title="View fullscreen"] {display: none !important;}
+    .st-emotion-cache-1cvow4s {display: none !important;} /* Classe comum do rodapé do iframe */
 
     /* 3. Força o fundo branco em toda a aplicação */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
@@ -52,7 +50,7 @@ st.markdown("""
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
-        background-color: #F0F2F6 !important; /* Um cinza bem leve para distinguir as bolhas */
+        background-color: #F0F2F6 !important; /* Cinza bem leve para distinguir as bolhas */
         color: #000000 !important;
     }
     
@@ -65,7 +63,7 @@ st.markdown("""
         color: #000000 !important;
     }
 
-    /* Ajusta a cor dos ícones de avatar (caso use os padrão do Streamlit) */
+    /* Ajusta a cor dos ícones de avatar */
     [data-testid="stChatMessage"] .st-emotion-cache-1p7n9v6 {
         background-color: #E0E0E0 !important;
     }
@@ -76,34 +74,40 @@ st.markdown("""
         padding-top: 0px !important;
     }
 
-    /* 8. Ajuste específico para o Input de texto (barra de digitar) */
+    /* 8. AJUSTES DA CAIXA DE TEXTO E FUNDO INFERIOR (Onde o usuário digita) */
+    
+    /* Fundo branco para a área fixa inferior inteira */
+    [data-testid="stBottom"], 
+    [data-testid="stBottomBlock"] > div {
+        background-color: #FFFFFF !important;
+    }
+
+    /* Fundo branco para o container do input */
+    [data-testid="stChatInput"] {
+        background-color: #FFFFFF !important;
+    }
+
+    /* Texto preto e fundo branco dentro da área de digitação */
     [data-testid="stChatInput"] textarea {
         color: #000000 !important;
         background-color: #FFFFFF !important;
     }
+
+    /* Escurece o botão de enviar (setinha) para ele aparecer no fundo branco */
+    [data-testid="stChatInput"] button {
+        color: #000000 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-
-
 # --- 3. Logo da GoEvo (Centralização via Colunas) ---
-
 CAMINHO_LOGO = "logo-goevo.png"
 
-
-
-# Criamos 3 colunas: a do meio é onde a logo fica "presa" centralizada
-
 c1, c2, c3 = st.columns([1, 0.3, 1])
-
 with c2:
-
     if os.path.exists(CAMINHO_LOGO):
-
-        st.image(CAMINHO_LOGO, width=65) # Tamanho pequeno e centralizado
-
+        st.image(CAMINHO_LOGO, width=65)
     else:
-
         st.markdown('<div style="height: 10px;"></div>', unsafe_allow_html=True)
 
 
@@ -287,4 +291,5 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
             st.markdown(res_final)
 
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
