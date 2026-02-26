@@ -111,28 +111,17 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-   /* --- 9. REMOVER RODAPÉ DO IFRAME (Estratégia Definitiva) --- */
+   /* --- 9. COMPENSAÇÃO DO CORTE DO IFRAME --- */
     
-    footer {
-        display: none !important; 
-        visibility: hidden !important;
+    /* Levanta a área de digitação (caixa azul) para ela escapar do corte */
+    [data-testid="stBottom"],
+    [data-testid="stBottomBlock"] {
+        bottom: 45px !important;
     }
-    
-    /* Caça e destrói qualquer div que contenha o link do Streamlit */
-    div:has(> a[href*="streamlit.io"]) {
-        display: none !important;
-        visibility: hidden !important;
-    }
-    
-    /* Caça e destrói qualquer div que contenha o botão de Fullscreen */
-    div:has(> button[title="View fullscreen"]) {
-        display: none !important;
-        visibility: hidden !important;
-    }
-    
-    /* Regra de segurança extra para garantir que só sobre o chat na tela */
-    div[data-testid="stApp"] > div:last-child:not([data-testid="stAppViewContainer"]) {
-        display: none !important;
+
+    /* Adiciona um espaço extra na rolagem para a última mensagem não ficar escondida atrás da caixa */
+    .block-container {
+        padding-bottom: 90px !important;
     }
     
 </style>
@@ -291,6 +280,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
 
             st.markdown(res_final)
             st.session_state.messages.append({"role": "assistant", "content": res_final})
+
 
 
 
