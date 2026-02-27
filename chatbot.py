@@ -1,25 +1,18 @@
 import streamlit as st
 import openai
 import chromadb
+import os
 
 # --- 1. Configuração da Página ---
 st.set_page_config(page_title="Evo IA", page_icon="✨", layout="wide")
 
-# --- 2. Injeção de CSS para Interface Totalmente Limpa ---
 st.markdown("""
 <style>
-    /* Esconde Header, Footer e Menus nativos */
+    /* Ocultar cabeçalhos e rodapés */
     header {visibility: hidden; height: 0px !important;}
     footer {display: none !important;}
     [data-testid="stHeader"] {display: none !important;}
-    [data-testid="stFooter"] {display: none !important;}
     
-    /* Remove a barra de rodapé e o badge "Built with Streamlit" */
-    div[class*="container_1upux"] {display: none !important;}
-    div[class*="viewerBadge"] {display: none !important;}
-    button[title="View fullscreen"] {display: none !important;}
-
-    /* ZERA o preenchimento superior para o chat começar do topo */
     .block-container {
         padding-top: 0rem !important;
         padding-bottom: 0rem !important;
@@ -28,28 +21,58 @@ st.markdown("""
         max-width: 100% !important;
     }
 
-    /* Ajuste global de fontes */
     html, body, [data-testid="stAppViewContainer"] {
         font-size: 14px;
         background-color: transparent !important;
     }
 
-    /* Balões de chat compactos */
+    /* === AJUSTE DE CORES DO INPUT E BOTÃO === */
+    
+    /* 1. Borda do campo quando selecionado */
+    [data-testid="stChatInput"] div:focus-within {
+        border-color: #0882c8 !important;
+    }
+
+    /* 2. Cor do botão de envio QUANDO ESTÁ ATIVO (ao digitar) */
+    [data-testid="stChatInput"] button {
+        background-color: #0882c8 !important;
+        border: none !important;
+    }
+
+    /* 3. Cor da seta dentro do botão quando ativo */
+    [data-testid="stChatInput"] button svg {
+        color: white !important; /* Seta branca sobre o fundo azul */
+    }
+
+    /* 4. Cor do cursor de digitação */
+    [data-testid="stChatInput"] textarea {
+        caret-color: #0882c8 !important;
+    }
+    
+    /* ============================================= */
+
     [data-testid="stChatMessage"] {
         padding: 0.5rem !important;
         margin-bottom: 0.5rem !important;
     }
+
+    div[data-testid="stChatMessageAvatarUser"] {
+        background-color: #D3D3D3 !important;
+    }
+
+    div[data-testid="stChatMessageAvatarAssistant"] {
+        background-color: transparent !important;
+    }
     
+    div[data-testid="stChatMessageAvatarAssistant"] img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+
     [data-testid="stChatMessageContent"] p {
         font-size: 0.95rem !important;
         line-height: 1.4 !important;
-        overflow-wrap: break-word;
-    }
-
-    /* Remove padding extra do topo do chat */
-    [data-testid="stVerticalBlock"] > div:first-child {
-        margin-top: 0px !important;
-        padding-top: 0px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -84,7 +107,6 @@ def carregar_colecao():
 def rotear_pergunta(pergunta):
     """Classifica com temperatura 0 para identificar SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE."""
     try:
-        # Ajustado para incluir a categoria AGRADECIMENTO
         prompt_roteador = f"Classifique: SAUDACAO, AGRADECIMENTO ou FUNCIONALIDADE. Responda apenas uma palavra. Pergunta: '{pergunta}'"
         resposta = client_openai.chat.completions.create(
             model="gpt-4o",
@@ -156,7 +178,8 @@ def gerar_resposta(pergunta, contexto, nome_feature):
 
 # --- 5. Execução do Chat ---
 
-RES_SAUDACAO = "Olá! Eu sou o Evo, suporte da GoEvo. Como posso te ajudar com as funcionalidades do sistema hoje?"
+LOGO_IA = "logo-goevo.png"  # Definição do ícone da IA
+RES_SAUDACAO = "Olá! Eu sou o Evo. Como posso te ajudar hoje?"
 RES_AGRADECIMENTO = "De nada! Fico feliz em ajudar. Se tiver mais alguma dúvida sobre as funcionalidades, é só chamar! 😊"
 colecao_func = carregar_colecao()
 
@@ -166,7 +189,9 @@ if "messages" not in st.session_state:
 
 # Renderiza histórico
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    # Aplica o logo se for assistente
+    avatar = LOGO_IA if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
 # Entrada do usuário
@@ -175,7 +200,7 @@ if pergunta := st.chat_input("Como posso te ajudar?"):
     with st.chat_message("user"):
         st.markdown(pergunta)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=LOGO_IA): # Aplica o logo na nova resposta
         with st.spinner("Escrevendo..."):
             intencao = rotear_pergunta(pergunta)
             
