@@ -2,3 +2,4 @@ streamlit
 openai
 chromadb-client
 pysqlite3-binary
+protobuf==3.20.1
